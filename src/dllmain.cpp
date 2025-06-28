@@ -236,6 +236,8 @@ void Resolution()
             iCustomResY = DesktopDimensions.second;
         }
 
+        CalculateAspectRatio(true);
+
         // Graphics window setting check
         std::uint8_t* GraphicsConfigCheckScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? 84 C0 0F 84 ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ?? 44 39 ?? ?? ?? ?? ?? 0F 87 ?? ?? ?? ?? 8B ?? ?? ?? ?? ??");
         if (GraphicsConfigCheckScanResult) {
@@ -355,7 +357,7 @@ void FOV()
         }
     }
 
-    if (bFixFOV)
+    if (bFixFOV && fAspectRatio < fNativeAspect)
     {
         // FOV: Global
         std::uint8_t* GlobalFOVScanResult = Memory::PatternScan(exeModule, "C5 F8 ?? ?? C5 F2 ?? ?? E8 ?? ?? ?? ?? C5 CA ?? ?? ?? ?? ?? ?? C5 F2 ?? ?? C5 FB ?? ?? E8 ?? ?? ?? ??");
@@ -372,26 +374,26 @@ void FOV()
             spdlog::error("FOV: Global: Pattern scan failed.");
         }
 
-        // FOV: Bracelet
-        std::uint8_t* BraceletFOVScanResult = Memory::PatternScan(exeModule, "C5 F8 ?? ?? ?? ?? C5 F8 ?? ?? E8 ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? C5 EA ?? ?? C5 FA ?? ?? E8 ?? ?? ?? ??");
-        if (BraceletFOVScanResult) {
-            spdlog::info("FOV: Bracelet: Address is {:s}+{:x}", sExeName.c_str(), BraceletFOVScanResult - reinterpret_cast<std::uint8_t*>(exeModule));
-            static SafetyHookMid BraceletFOVMidHook{};
-            BraceletFOVMidHook = safetyhook::create_mid(BraceletFOVScanResult,
+        // FOV: Cuffs
+        std::uint8_t* CuffsFOVScanResult = Memory::PatternScan(exeModule, "C5 F8 ?? ?? ?? ?? C5 F8 ?? ?? E8 ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? C5 EA ?? ?? C5 FA ?? ?? E8 ?? ?? ?? ??");
+        if (CuffsFOVScanResult) {
+            spdlog::info("FOV: Cuffs: Address is {:s}+{:x}", sExeName.c_str(), CuffsFOVScanResult - reinterpret_cast<std::uint8_t*>(exeModule));
+            static SafetyHookMid CuffsFOVMidHook{};
+            CuffsFOVMidHook = safetyhook::create_mid(CuffsFOVScanResult,
                 [](SafetyHookContext& ctx) {
                     if (fAspectRatio < fNativeAspect)
                         ctx.xmm1.f32[0] = fAspectRatio;
                 });
         }
         else {
-            spdlog::error("FOV: Bracelet: Pattern scan failed.");
+            spdlog::error("FOV: Cuffs: Pattern scan failed.");
         }
     }  
 }
 
 void HUD()
 {
-    if (bFixHUD)
+    if (bFixHUD && fAspectRatio < fNativeAspect)
     {
         // TODO: Fix mouse at <16:9
 
