@@ -13,7 +13,7 @@ HMODULE thisModule;
 
 // Fix details
 std::string sFixName = "DeathStrandingDCFix";
-std::string sFixVersion = "0.0.2";
+std::string sFixVersion = "0.0.1";
 std::filesystem::path FixPath;
 
 // Ini
@@ -478,34 +478,6 @@ void Graphics()
         }
         else {
             spdlog::error("Entity Update Rate: Pattern scan failed.");
-        }
-    }
-   
-
-    if (fLODDistance != 0.75f) 
-    {
-        // LOD Distance
-        std::uint8_t* LODDistanceScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? C5 ?? 59 ?? C5 ?? ?? ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? 89 ?? ?? ?? ?? ??");
-        std::uint8_t* LODDistanceClamp1ScanResult = Memory::PatternScan(exeModule, "77 ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 FA ?? ?? ?? E9 ?? ?? ?? ??");
-        std::uint8_t* LODDistanceClamp2ScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? ?? ?? ?? 48 C7 ?? ?? ?? ?? ?? ?? 00 00 00 00 48 89 ?? ?? ?? ?? ?? ?? E8 ?? ?? ?? ??");
-        if (LODDistanceScanResult && LODDistanceClamp1ScanResult && LODDistanceClamp2ScanResult) {
-            spdlog::info("LOD: Distance: Address is {:s}+{:x}", sExeName.c_str(), LODDistanceScanResult - reinterpret_cast<std::uint8_t*>(exeModule));
-            static SafetyHookMid LODDistanceMidHook{};
-            LODDistanceMidHook = safetyhook::create_mid(LODDistanceScanResult + 0x5,
-                [](SafetyHookContext& ctx) {
-                    // If model quality is set to "very high" then adjust LOD distance
-                    if (ctx.rax == 3)
-                        ctx.xmm0.f32[0] = fLODDistance;
-                });
-
-            spdlog::info("LOD Distance: Clamp: 1: Address is {:s}+{:x}", sExeName.c_str(), LODDistanceClamp1ScanResult - reinterpret_cast<std::uint8_t*>(exeModule));
-            Memory::PatchBytes(LODDistanceClamp1ScanResult + 0x11, "\x51", 1); // vmovss [rcx+40],xmm0 -> vmovss [rcx+40],xmm2
-            spdlog::info("LOD Distance: Clamp: 2: Address is {:s}+{:x}", sExeName.c_str(), LODDistanceClamp2ScanResult - reinterpret_cast<std::uint8_t*>(exeModule));
-            Memory::PatchBytes(LODDistanceClamp2ScanResult + 0x3, "\xF0\x90\x90\x90\x90", 5); // vmaxss xmm6,xmm0,[7FF7B91B5430] -> vmaxss xmm6,xmm0,xmm0
-            spdlog::info("LOD Distance: Clamp: Patched instructions.");
-        }
-        else {
-            spdlog::error("LOD Distance: Pattern scan(s) failed.");
         }
     }
 }

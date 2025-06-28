@@ -17,9 +17,6 @@
 - Support for narrower than 16:9 aspect ratios.
 - Centered 16:9 gameplay HUD (ultrawide-only).
 
-### Graphics
-- Adjust model quality draw distance.
-
 ## Installation  
 - Download the latest [release](../../../releases). 
 - Extract the contents of the release zip in to the the game folder. (e.g. **steamapps\common\DEATH STRANDING DIRECTORS CUT** for Steam)
