@@ -15,6 +15,7 @@
 - Expanded ultrawide support.
 - Correctly scaled pre-rendered videos.
 - Support for narrower than 16:9 aspect ratios.
+- Centered 16:9 gameplay HUD (Ultrawide-only).
 
 ### Graphics
 - Adjust model quality draw distance.
