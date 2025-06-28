@@ -13,7 +13,7 @@ HMODULE thisModule;
 
 // Fix details
 std::string sFixName = "DeathStrandingDCFix";
-std::string sFixVersion = "0.0.1";
+std::string sFixVersion = "0.0.2";
 std::filesystem::path FixPath;
 
 // Ini
@@ -488,7 +488,7 @@ void Graphics()
         if (LODDistanceScanResult && LODDistanceClampScanResult) {
             spdlog::info("LOD: Distance: Address is {:s}+{:x}", sExeName.c_str(), LODDistanceScanResult - reinterpret_cast<std::uint8_t*>(exeModule));
             static SafetyHookMid LODDistanceMidHook{};
-            LODDistanceMidHook = safetyhook::create_mid(LODDistanceScanResult,
+            LODDistanceMidHook = safetyhook::create_mid(LODDistanceScanResult + 0x5,
                 [](SafetyHookContext& ctx) {
                     // If model quality is set to "very high" then adjust LOD distance
                     if (ctx.rax == 3) {
