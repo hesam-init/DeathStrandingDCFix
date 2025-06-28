@@ -1,7 +1,7 @@
 # DeathStrandingDCFix
 [![Patreon-Button](.github/images/Patreon-Button.png)](https://www.patreon.com/Wintermance) [![ko-fi](.github/images/Kofi-Button.svg)](https://ko-fi.com/W7W01UAI9)
 
-**DeathStrandingDCFix** is an ASI plugin for **Death Stranding: Director's Cut** that expands ultrawide support, skips intro logos and more.
+**DeathStrandingDCFix** is an ASI plugin for **Death Stranding: Director's Cut** that expands ultrawide support, fixes camera stutter, skips intro logos and more.
 
 ## Features
 
@@ -15,7 +15,7 @@
 - Expanded ultrawide support.
 - Correctly scaled pre-rendered videos.
 - Support for narrower than 16:9 aspect ratios.
-- Centered 16:9 gameplay HUD (Ultrawide-only).
+- Centered 16:9 gameplay HUD (ultrawide-only).
 
 ### Graphics
 - Adjust model quality draw distance.
