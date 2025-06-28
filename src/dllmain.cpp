@@ -494,7 +494,7 @@ void Graphics()
                 [](SafetyHookContext& ctx) {
                     // If model quality is set to "very high" then adjust LOD distance
                     if (ctx.rax == 3) {
-                        ctx.xmm0.f32[0] = 0.25f;
+                        ctx.xmm0.f32[0] = fLODDistance;
                     }
                 });
 
