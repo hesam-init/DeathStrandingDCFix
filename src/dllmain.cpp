@@ -236,6 +236,8 @@ void Resolution()
             iCustomResY = DesktopDimensions.second;
         }
 
+        iCurrentResX = iCustomResX;
+        iCurrentResY = iCustomResY;
         CalculateAspectRatio(true);
 
         // Graphics window setting check
