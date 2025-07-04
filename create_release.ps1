@@ -7,7 +7,7 @@ param (
 # Configuration
 $Username = "Lyall"
 $RepoName = "DeathStrandingDCFix"
-$ProxyName = "winmm.dll"
+$ProxyName = "winhttp.dll"
 $Arch = "x64"
 $ZipFolder = "tmp"
 
