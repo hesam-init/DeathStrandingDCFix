@@ -53,7 +53,6 @@ float fGameplayFOVMulti;
 float fLODDistance;
 bool bCenterHUD;
 bool bEntityUpdateRate;
-bool bFpsCapChange;
 
 // Variables
 int iCurrentResX;
