@@ -174,8 +174,8 @@ void Configuration()
 
     // Load settings from ini
     inipp::get_value(ini.sections["Intro Skip"], "Enabled", bIntroSkip);
-    inipp::get_value(ini.sections["Override FPS Limit"], "Enabled", customCapEnabled);
-    inipp::get_value(ini.sections["Override FPS Limit"], "Limit", customCap);
+    inipp::get_value(ini.sections["Custom FPS Limit"], "Enabled", customCapEnabled);
+    inipp::get_value(ini.sections["Custom FPS Limit"], "Limit", customCap);
     inipp::get_value(ini.sections["Custom Resolution"], "Enabled", bCustomRes);
     inipp::get_value(ini.sections["Custom Resolution"], "Width", iCustomResX);
     inipp::get_value(ini.sections["Custom Resolution"], "Height", iCustomResY);
