@@ -3,7 +3,7 @@ local name = "DeathStrandingDCFix"
 set_project(name)
 add_rules("mode.debug", "mode.release")
 set_languages("cxxlatest", "clatest")
-set_optimize("fast")
+set_optimize("smallest")
 
 target(name)
     set_kind("shared")
