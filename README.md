@@ -10,6 +10,7 @@
 - Custom resolutions.
 - Fixed camera stutter over 60fps.
 - Adjustable gameplay FOV.
+- Custom FPS limit.
 
 ### Ultrawide/Narrower
 - Expanded ultrawide support.
