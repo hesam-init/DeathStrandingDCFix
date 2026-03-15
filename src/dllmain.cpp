@@ -490,40 +490,6 @@ void Graphics()
     }
 }
 
-// Changes what the settings menu sets the var to (unfinished)
-// void FixFpsCap() {
-//     std::uint8_t* scan = Memory::PatternScan(
-//         exeModule,
-//         "3B C1 0F 4F C1 89 05 ?? ?? ?? ?? 8B 4B 40"
-//     );
-//     if (scan) {
-//         spdlog::info("FPS Cap Write: {:s}+{:x}", sExeName.c_str(),
-//                      scan - reinterpret_cast<std::uint8_t*>(exeModule));
-//
-//         // Replace mov [mem],eax with mov eax,<cap>
-//         uint8_t patch[6] =
-//             {
-//                 0xB8,                     // mov eax,imm32
-//                 (uint8_t)(customCap),
-//                 (uint8_t)(customCap >> 8),
-//                 (uint8_t)(customCap >> 16),
-//                 (uint8_t)(customCap >> 24),
-//                 0x90                      // nop
-//             };
-//
-//         Memory::PatchBytes(
-//             scan + 5,
-//             reinterpret_cast<const char*>(patch),
-//             sizeof(patch)
-//         );
-//
-//         spdlog::info("FPS Cap patched to {}", customCap);
-//     }
-//     else {
-//         spdlog::error("FPS Cap pattern scan failed.");
-//     }
-// }
-
 // changes the code that reads the cap
 void FixFpsCap() {
     std::uint8_t* scan = Memory::PatternScan(
