@@ -532,7 +532,7 @@ void FixFpsCap() {
     );
 
     if (scan) {
-        spdlog::info("FPS cap read at {:s}+{:x}",
+        spdlog::info("FPS limit read at {:s}+{:x}",
                      sExeName.c_str(),
                      scan - reinterpret_cast<std::uint8_t*>(exeModule));
 
@@ -548,10 +548,10 @@ void FixFpsCap() {
 
         Memory::PatchBytes(scan, reinterpret_cast<const char*>(patch), sizeof(patch));
 
-        spdlog::info("FPS cap forced to {}", customCap);
+        spdlog::info("FPS limit overridden to {}", customCap);
     }
     else {
-        spdlog::error("FPS cap pattern scan failed.");
+        spdlog::error("FPS limit pattern scan failed.");
     }
 }
 
