@@ -30,6 +30,9 @@ std::string sExeName;
 std::pair DesktopDimensions = { 0,0 };
 const float fPi = 3.1415926535f;
 const float fNativeAspect = (16.00f / 9.00f);
+
+const int customCap = 999;
+
 float fAspectRatio;
 float fAspectMultiplier;
 float fHUDWidth;
@@ -49,6 +52,7 @@ float fGameplayFOVMulti;
 float fLODDistance;
 bool bCenterHUD;
 bool bEntityUpdateRate;
+bool bFpsCapChange;
 
 // Variables
 int iCurrentResX;
@@ -64,7 +68,7 @@ void CalculateAspectRatio(bool bLog)
     fAspectRatio = (float)iCurrentResX / (float)iCurrentResY;
     fAspectMultiplier = fAspectRatio / fNativeAspect;
 
-    // HUD 
+    // HUD
     fHUDWidth = (float)iCurrentResY * fNativeAspect;
     fHUDHeight = (float)iCurrentResY;
     fHUDWidthOffset = (float)(iCurrentResX - fHUDWidth) / 2.00f;
@@ -118,8 +122,8 @@ void Logging()
         spdlog::flush_on(spdlog::level::debug);
 
         #ifdef _DEBUG
-        spdlog::set_level(spdlog::level::debug); 
-        #endif 
+        spdlog::set_level(spdlog::level::debug);
+        #endif
 
         spdlog::info("----------");
         spdlog::info("{:s} v{:s} loaded.", sFixName, sFixVersion);
@@ -213,7 +217,7 @@ void Resolution()
                 int iResX = (int)ctx.rdx;
                 int iResY = (int)ctx.r8;
 
-                if (iResX != iCurrentResX || iResY != iCurrentResY) 
+                if (iResX != iCurrentResX || iResY != iCurrentResY)
                 {
                     iCurrentResX = iResX;
                     iCurrentResY = iResY;
@@ -225,7 +229,7 @@ void Resolution()
         spdlog::error("Current Resolution: Pattern scan failed.");
     }
 
-    if (bCustomRes) 
+    if (bCustomRes)
     {
         // Grab desktop resolution
         DesktopDimensions = Util::GetPhysicalDesktopDimensions();
@@ -281,7 +285,7 @@ void Resolution()
             spdlog::info("Custom Resolution: Address is {:s}+{:x}", sExeName.c_str(), CustomResolutionScanResult - reinterpret_cast<std::uint8_t*>(exeModule));
             static SafetyHookMid CustomResolutionMidHook{};
             CustomResolutionMidHook = safetyhook::create_mid(CustomResolutionScanResult,
-                [](SafetyHookContext& ctx) { 
+                [](SafetyHookContext& ctx) {
                     if (!ctx.rbx) return;
 
                     // idx 5, 4, 3, 2, 1
@@ -309,7 +313,7 @@ void Resolution()
 
 void IntroSkip()
 {
-    if (bIntroSkip) 
+    if (bIntroSkip)
     {
         // Intro skip
         std::uint8_t* IntroSkipScanResult = Memory::PatternScan(exeModule,"44 ?? ?? ?? 48 8B ?? 88 ?? ?? ?? ?? ?? 41 ?? ?? 03 74 ?? 41 ?? ?? 01");
@@ -337,12 +341,12 @@ void IntroSkip()
         else {
             spdlog::error("Intro Skip: Pattern scan failed.");
         }
-    }   
+    }
 }
 
 void FOV()
 {
-    if (fGameplayFOVMulti != 1.00f) 
+    if (fGameplayFOVMulti != 1.00f)
     {
         // FOV: Gameplay
         std::uint8_t* GameplayFOVScanResult = Memory::PatternScan(exeModule, "48 8D ?? ?? ?? ?? ?? C5 7A ?? ?? ?? 48 8B ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ??");
@@ -390,7 +394,7 @@ void FOV()
         else {
             spdlog::error("FOV: Cuffs: Pattern scan failed.");
         }
-    }  
+    }
 }
 
 void HUD()
@@ -414,7 +418,7 @@ void HUD()
                         ctx.xmm1.f32[0] = fWidthOffset;
                         ctx.xmm2.f32[0] = 1920.00f;
                         ctx.xmm3.f32[0] = ctx.xmm5.f32[0] + fHeightOffset;
-                    }    
+                    }
                 });
         }
         else {
@@ -422,7 +426,7 @@ void HUD()
         }
     }
 
-    if (bCenterHUD) 
+    if (bCenterHUD)
     {
         // HUD: Ultrawide
         std::uint8_t* HUDUltrawideScanResult = Memory::PatternScan(exeModule, "C5 ?? ?? ?? C5 ?? ?? ?? ?? C4 ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? C5 ?? ?? ?? ?? 48 8D ?? ?? E8 ?? ?? ?? ??");
@@ -457,8 +461,8 @@ void Movies()
                         ctx.xmm1.f32[0] = fHUDWidthOffset;      // Left
                         ctx.xmm2.f32[0] = fHUDHeightOffset;     // Top
                         ctx.xmm3.f32[0] = fHUDWidth;            // Right
-                        ctx.xmm0.f32[0] = fHUDHeight;           // Bottom      
-                    } 
+                        ctx.xmm0.f32[0] = fHUDHeight;           // Bottom
+                    }
                 });
         }
         else {
@@ -483,7 +487,77 @@ void Graphics()
         }
     }
 }
- 
+
+void FixFpsCap() {
+    // if (bFpsCapChange)
+    if (true) {
+        std::uint8_t* scan = Memory::PatternScan(
+            exeModule,
+            "3B C1 0F 4F C1 89 05 ?? ?? ?? ?? 8B 4B 40"
+        );
+        if (scan) {
+            spdlog::info("FPS Cap Write: {:s}+{:x}", sExeName.c_str(),
+                         scan - reinterpret_cast<std::uint8_t*>(exeModule));
+
+            // Replace mov [mem],eax with mov eax,<cap>
+            uint8_t patch[6] =
+                {
+                    0xB8,                     // mov eax,imm32
+                    (uint8_t)(customCap),
+                    (uint8_t)(customCap >> 8),
+                    (uint8_t)(customCap >> 16),
+                    (uint8_t)(customCap >> 24),
+                    0x90                      // nop
+                };
+
+            Memory::PatchBytes(
+                scan + 5,
+                reinterpret_cast<const char*>(patch),
+                sizeof(patch)
+            );
+
+            spdlog::info("FPS Cap patched to {}", customCap);
+        }
+        else {
+            spdlog::error("FPS Cap pattern scan failed.");
+        }
+    }
+}
+
+void FixFpsCap2() {
+    if (true) {
+        std::uint8_t* scan = Memory::PatternScan(
+            exeModule,
+            "8B 1D ? ? ? ? 44 0F B6 05 ? ? ? ? 8B 88"
+        );
+
+        if (scan)
+        {
+            spdlog::info("FPS cap read at {:s}+{:x}",
+                sExeName.c_str(),
+                scan - reinterpret_cast<std::uint8_t*>(exeModule));
+
+            uint8_t patch[6] =
+            {
+                0xBB,
+                (uint8_t)(customCap),
+                (uint8_t)(customCap >> 8),
+                (uint8_t)(customCap >> 16),
+                (uint8_t)(customCap >> 24),
+                0x90
+            };
+
+            Memory::PatchBytes(scan, reinterpret_cast<const char*>(patch), sizeof(patch));
+
+            spdlog::info("FPS cap forced to {}", customCap);
+        }
+        else
+        {
+            spdlog::error("FPS cap pattern scan failed.");
+        }
+    }
+}
+
 std::mutex mainThreadFinishedMutex;
 std::condition_variable mainThreadFinishedVar;
 bool mainThreadFinished = false;
@@ -498,6 +572,8 @@ DWORD __stdcall Main(void*)
     HUD();
     Movies();
     Graphics();
+    FixFpsCap();
+    FixFpsCap2();
 
     {
         std::lock_guard lock(mainThreadFinishedMutex);

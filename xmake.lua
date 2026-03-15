@@ -3,7 +3,7 @@ local name = "DeathStrandingDCFix"
 set_project(name)
 add_rules("mode.debug", "mode.release")
 set_languages("cxxlatest", "clatest")
-set_optimize("smallest")
+set_optimize("fast")
 
 target(name)
     set_kind("shared")
@@ -16,6 +16,7 @@ target(name)
     if is_plat("windows") then
         set_toolchains("msvc")
         set_runtimes("MT")
-        add_cxflags("/utf-8", "/GL")
+        add_cxflags("/utf-8")
+        -- add_cxflags("/utf-8", "/GL")
         add_ldflags("/LTCG", "/OPT:REF", "/OPT:ICF")
     end
