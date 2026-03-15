@@ -31,7 +31,6 @@ std::pair DesktopDimensions = { 0,0 };
 const float fPi = 3.1415926535f;
 const float fNativeAspect = (16.00f / 9.00f);
 
-const int customCap = 999;
 
 float fAspectRatio;
 float fAspectMultiplier;
@@ -45,6 +44,8 @@ bool bIntroSkip;
 bool bCustomRes;
 int iCustomResX;
 int iCustomResY;
+bool customCapEnabled;
+int customCap;
 bool bFixMovies;
 bool bFixFOV;
 bool bFixHUD;
@@ -174,6 +175,8 @@ void Configuration()
 
     // Load settings from ini
     inipp::get_value(ini.sections["Intro Skip"], "Enabled", bIntroSkip);
+    inipp::get_value(ini.sections["Override FPS Limit"], "Enabled", customCapEnabled);
+    inipp::get_value(ini.sections["Override FPS Limit"], "Limit", customCap);
     inipp::get_value(ini.sections["Custom Resolution"], "Enabled", bCustomRes);
     inipp::get_value(ini.sections["Custom Resolution"], "Width", iCustomResX);
     inipp::get_value(ini.sections["Custom Resolution"], "Height", iCustomResY);
@@ -488,56 +491,53 @@ void Graphics()
     }
 }
 
-void FixFpsCap() {
-    // if (bFpsCapChange)
-    if (true) {
-        std::uint8_t* scan = Memory::PatternScan(
-            exeModule,
-            "3B C1 0F 4F C1 89 05 ?? ?? ?? ?? 8B 4B 40"
-        );
-        if (scan) {
-            spdlog::info("FPS Cap Write: {:s}+{:x}", sExeName.c_str(),
-                         scan - reinterpret_cast<std::uint8_t*>(exeModule));
+// changes what the settings menu sets the var to
+// void FixFpsCap() {
+//     std::uint8_t* scan = Memory::PatternScan(
+//         exeModule,
+//         "3B C1 0F 4F C1 89 05 ?? ?? ?? ?? 8B 4B 40"
+//     );
+//     if (scan) {
+//         spdlog::info("FPS Cap Write: {:s}+{:x}", sExeName.c_str(),
+//                      scan - reinterpret_cast<std::uint8_t*>(exeModule));
+//
+//         // Replace mov [mem],eax with mov eax,<cap>
+//         uint8_t patch[6] =
+//             {
+//                 0xB8,                     // mov eax,imm32
+//                 (uint8_t)(customCap),
+//                 (uint8_t)(customCap >> 8),
+//                 (uint8_t)(customCap >> 16),
+//                 (uint8_t)(customCap >> 24),
+//                 0x90                      // nop
+//             };
+//
+//         Memory::PatchBytes(
+//             scan + 5,
+//             reinterpret_cast<const char*>(patch),
+//             sizeof(patch)
+//         );
+//
+//         spdlog::info("FPS Cap patched to {}", customCap);
+//     }
+//     else {
+//         spdlog::error("FPS Cap pattern scan failed.");
+//     }
+// }
 
-            // Replace mov [mem],eax with mov eax,<cap>
-            uint8_t patch[6] =
-                {
-                    0xB8,                     // mov eax,imm32
-                    (uint8_t)(customCap),
-                    (uint8_t)(customCap >> 8),
-                    (uint8_t)(customCap >> 16),
-                    (uint8_t)(customCap >> 24),
-                    0x90                      // nop
-                };
-
-            Memory::PatchBytes(
-                scan + 5,
-                reinterpret_cast<const char*>(patch),
-                sizeof(patch)
-            );
-
-            spdlog::info("FPS Cap patched to {}", customCap);
-        }
-        else {
-            spdlog::error("FPS Cap pattern scan failed.");
-        }
-    }
-}
-
+// changes the code that reads the cap
 void FixFpsCap2() {
-    if (true) {
-        std::uint8_t* scan = Memory::PatternScan(
-            exeModule,
-            "8B 1D ? ? ? ? 44 0F B6 05 ? ? ? ? 8B 88"
-        );
+    std::uint8_t* scan = Memory::PatternScan(
+        exeModule,
+        "8B 1D ? ? ? ? 44 0F B6 05 ? ? ? ? 8B 88"
+    );
 
-        if (scan)
-        {
-            spdlog::info("FPS cap read at {:s}+{:x}",
-                sExeName.c_str(),
-                scan - reinterpret_cast<std::uint8_t*>(exeModule));
+    if (scan) {
+        spdlog::info("FPS cap read at {:s}+{:x}",
+                     sExeName.c_str(),
+                     scan - reinterpret_cast<std::uint8_t*>(exeModule));
 
-            uint8_t patch[6] =
+        uint8_t patch[6] =
             {
                 0xBB,
                 (uint8_t)(customCap),
@@ -547,14 +547,12 @@ void FixFpsCap2() {
                 0x90
             };
 
-            Memory::PatchBytes(scan, reinterpret_cast<const char*>(patch), sizeof(patch));
+        Memory::PatchBytes(scan, reinterpret_cast<const char*>(patch), sizeof(patch));
 
-            spdlog::info("FPS cap forced to {}", customCap);
-        }
-        else
-        {
-            spdlog::error("FPS cap pattern scan failed.");
-        }
+        spdlog::info("FPS cap forced to {}", customCap);
+    }
+    else {
+        spdlog::error("FPS cap pattern scan failed.");
     }
 }
 
@@ -572,8 +570,10 @@ DWORD __stdcall Main(void*)
     HUD();
     Movies();
     Graphics();
-    FixFpsCap();
-    FixFpsCap2();
+    if (customCapEnabled) {
+        // FixFpsCap();
+        FixFpsCap2();
+    }
 
     {
         std::lock_guard lock(mainThreadFinishedMutex);
