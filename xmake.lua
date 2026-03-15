@@ -16,7 +16,6 @@ target(name)
     if is_plat("windows") then
         set_toolchains("msvc")
         set_runtimes("MT")
-        add_cxflags("/utf-8")
-        -- add_cxflags("/utf-8", "/GL")
+        add_cxflags("/utf-8", "/GL")
         add_ldflags("/LTCG", "/OPT:REF", "/OPT:ICF")
     end
