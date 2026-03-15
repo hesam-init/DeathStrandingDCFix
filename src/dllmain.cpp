@@ -491,7 +491,7 @@ void Graphics()
     }
 }
 
-// changes what the settings menu sets the var to
+// Changes what the settings menu sets the var to (unfinished)
 // void FixFpsCap() {
 //     std::uint8_t* scan = Memory::PatternScan(
 //         exeModule,
@@ -526,7 +526,7 @@ void Graphics()
 // }
 
 // changes the code that reads the cap
-void FixFpsCap2() {
+void FixFpsCap() {
     std::uint8_t* scan = Memory::PatternScan(
         exeModule,
         "8B 1D ? ? ? ? 44 0F B6 05 ? ? ? ? 8B 88"
@@ -571,8 +571,7 @@ DWORD __stdcall Main(void*)
     Movies();
     Graphics();
     if (customCapEnabled) {
-        // FixFpsCap();
-        FixFpsCap2();
+        FixFpsCap();
     }
 
     {
