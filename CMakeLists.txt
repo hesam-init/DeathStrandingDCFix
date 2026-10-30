@@ -54,6 +54,12 @@ if(MINGW)
         -static -static-libgcc -static-libstdc++
         $<$<NOT:$<CONFIG:Debug>>:-Wl,--gc-sections>
         $<$<NOT:$<CONFIG:Debug>>:-s>)
+    # GCC < 15 (e.g. Debian trixie's 14.2) emits C++23's inline std::type_info::operator== into our
+    # objects while the static libstdc++ also defines it (GCC PR 110572), so -static fails to link
+    # with "multiple definition". Both copies are the same function; let the linker keep one.
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15)
+        target_link_options(${PROJECT_NAME} PRIVATE -Wl,--allow-multiple-definition)
+    endif()
 endif()
 
 # Copy the default ini next to winhttp.dll (re-copied on reconfigure).
