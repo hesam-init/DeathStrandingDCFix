@@ -1,0 +1,6 @@
+{
+    "cSpell.ignorePaths": [
+        "**/CMakeLists.txt",
+        "**/*.cmake"
+    ]
+}
