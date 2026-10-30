@@ -14,7 +14,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Release folder: the .asi, its .ini and the ASI loader end up together here.
+# Release folder: winhttp.dll (the fix, loaded by the game as a proxy) and its .ini end up together here.
 set(RELEASE_DIR ${CMAKE_BINARY_DIR}/bin)
 
 if(MINGW)
@@ -30,16 +30,22 @@ elseif(MSVC)
 endif()
 
 include(cmake/Dependencies.cmake)
-include(cmake/AsiLoader.cmake)
 
-add_library(${PROJECT_NAME} SHARED src/dllmain.cpp)
+# Built as winhttp.dll: ds.exe imports WINHTTP.dll, so the game loads the fix directly and every winhttp
+# export is forwarded to the system winhttp.dll (src/proxy). No ASI loader needed.
+add_library(${PROJECT_NAME} SHARED
+    src/dllmain.cpp
+    src/overlay.cpp
+    src/proxy/winhttp.cpp
+    src/proxy/winhttp.def)
 set_target_properties(${PROJECT_NAME} PROPERTIES
     PREFIX ""
-    SUFFIX ".asi"
+    OUTPUT_NAME "winhttp"
+    SUFFIX ".dll"
     RUNTIME_OUTPUT_DIRECTORY ${RELEASE_DIR}
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 target_compile_definitions(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:_DEBUG>)
-target_link_libraries(${PROJECT_NAME} PRIVATE deps::spdlog deps::inipp deps::safetyhook user32)
+target_link_libraries(${PROJECT_NAME} PRIVATE deps::spdlog deps::inipp deps::safetyhook deps::imgui user32)
 
 if(MINGW)
     # Fully static so the game folder needs no libstdc++/libgcc/winpthread DLLs.
@@ -49,14 +55,18 @@ if(MINGW)
         $<$<NOT:$<CONFIG:Debug>>:-s>)
 endif()
 
-# Copy the default ini and the ASI loader next to the .asi (re-copied on reconfigure).
+# Copy the default ini next to winhttp.dll (re-copied on reconfigure).
 configure_file(${PROJECT_NAME}.ini ${RELEASE_DIR}/${PROJECT_NAME}.ini COPYONLY)
-configure_file(${ASI_LOADER_PATH} ${RELEASE_DIR}/${ASI_LOADER_PROXY_NAME} COPYONLY)
 
 # Install into a game folder: cmake --install <build> --component game --prefix <game dir>
-install(FILES $<TARGET_FILE:${PROJECT_NAME}> ${RELEASE_DIR}/${ASI_LOADER_PROXY_NAME}
-    DESTINATION . COMPONENT game)
+# (winhttp.dll replaces the Ultimate ASI Loader older versions shipped under the same name)
+install(FILES $<TARGET_FILE:${PROJECT_NAME}> DESTINATION . COMPONENT game)
 install(CODE "
+    set(old_asi \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}.asi\")
+    if(EXISTS \"\${old_asi}\")
+        message(STATUS \"Removing old: \${old_asi}\")
+        file(REMOVE \"\${old_asi}\")
+    endif()
     set(ini \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}.ini\")
     if(EXISTS \"\${ini}\")
         message(STATUS \"Keeping existing: \${ini}\")

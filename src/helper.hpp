@@ -1,3 +1,5 @@
+#pragma once
+
 #include "stdafx.h"
 
 namespace Memory
@@ -11,7 +13,7 @@ namespace Memory
         VirtualProtect((LPVOID)(writeAddress), sizeof(T), oldProtect, &oldProtect);
     }
 
-    void PatchBytes(std::uint8_t* address, const char* pattern, unsigned int numBytes)
+    inline void PatchBytes(std::uint8_t* address, const char* pattern, unsigned int numBytes)
     {
         DWORD oldProtect;
         VirtualProtect((LPVOID)address, numBytes, PAGE_EXECUTE_READWRITE, &oldProtect);
@@ -19,7 +21,7 @@ namespace Memory
         VirtualProtect((LPVOID)address, numBytes, oldProtect, &oldProtect);
     }
 
-    std::vector<int> pattern_to_byte(const char* pattern)
+    inline std::vector<int> pattern_to_byte(const char* pattern)
     {
         auto bytes = std::vector<int>{};
         auto start = const_cast<char*>(pattern);
@@ -39,7 +41,7 @@ namespace Memory
         return bytes;
     }
 
-    std::uint8_t* PatternScan(void* module, const char* signature) 
+    inline std::uint8_t* PatternScan(void* module, const char* signature) 
     {
         auto dosHeader = (PIMAGE_DOS_HEADER)module;
         auto ntHeaders = (PIMAGE_NT_HEADERS)((std::uint8_t*)module + dosHeader->e_lfanew);
@@ -67,7 +69,7 @@ namespace Memory
         return nullptr;
     }
 
-    std::uint8_t* MultiPatternScan(void* module, const std::vector<const char*>& signatures) 
+    inline std::uint8_t* MultiPatternScan(void* module, const std::vector<const char*>& signatures) 
     { 
         for (const auto& signature : signatures) 
         {
@@ -78,7 +80,7 @@ namespace Memory
         return nullptr;
     }
 
-    std::vector<std::uint8_t*> PatternScanAll(void* module, const char* signature)
+    inline std::vector<std::uint8_t*> PatternScanAll(void* module, const char* signature)
     {
         auto dosHeader = (PIMAGE_DOS_HEADER)module;
         auto ntHeaders = (PIMAGE_NT_HEADERS)((std::uint8_t*)module + dosHeader->e_lfanew);
@@ -108,7 +110,7 @@ namespace Memory
         return results;
     }
 
-    std::vector<std::uint8_t*> MultiPatternScanAll(void* module, const std::vector<const char*>& signatures) 
+    inline std::vector<std::uint8_t*> MultiPatternScanAll(void* module, const std::vector<const char*>& signatures) 
     {
         std::vector<std::uint8_t*> results;
         
@@ -121,14 +123,14 @@ namespace Memory
         return results;
     }
 
-    std::uint32_t ModuleTimestamp(void* module)
+    inline std::uint32_t ModuleTimestamp(void* module)
     {
         auto dosHeader = (PIMAGE_DOS_HEADER)module;
         auto ntHeaders = (PIMAGE_NT_HEADERS)((std::uint8_t*)module + dosHeader->e_lfanew);
         return ntHeaders->FileHeader.TimeDateStamp;
     }
 
-    std::uint8_t* GetAbsolute(std::uint8_t* address) noexcept
+    inline std::uint8_t* GetAbsolute(std::uint8_t* address) noexcept
     {
         if (address == nullptr)
             return nullptr;
@@ -139,7 +141,7 @@ namespace Memory
         return absoluteAddress;
     }
 
-    BOOL HookIAT(HMODULE callerModule, char const* targetModule, const void* targetFunction, void* detourFunction)
+    inline BOOL HookIAT(HMODULE callerModule, char const* targetModule, const void* targetFunction, void* detourFunction)
     {
         auto* base = (uint8_t*)callerModule;
         const auto* dos_header = (IMAGE_DOS_HEADER*)base;
@@ -178,7 +180,7 @@ namespace Memory
 
 namespace Util
 {
-    std::pair<int, int> GetPhysicalDesktopDimensions() 
+    inline std::pair<int, int> GetPhysicalDesktopDimensions() 
     {
         if (DEVMODE devMode{ .dmSize = sizeof(DEVMODE) }; EnumDisplaySettings(nullptr, ENUM_CURRENT_SETTINGS, &devMode))
             return { devMode.dmPelsWidth, devMode.dmPelsHeight };
@@ -186,7 +188,7 @@ namespace Util
         return {};
     }
 
-    std::string wstring_to_string(const std::wstring& wstr) 
+    inline std::string wstring_to_string(const std::wstring& wstr) 
     {
         if (wstr.empty()) return {};
         std::string str(wstr.size() * 2, '\0');
@@ -196,12 +198,12 @@ namespace Util
         return str;
     }
 
-    std::string wstring_to_string(const wchar_t* wstr) 
+    inline std::string wstring_to_string(const wchar_t* wstr) 
     {
         return wstr ? wstring_to_string(std::wstring(wstr)) : std::string{};
     }
 
-    bool string_cmp_caseless(const std::string& str1, const std::string& str2) 
+    inline bool string_cmp_caseless(const std::string& str1, const std::string& str2) 
     {
         if (str1.size() != str2.size()) {
             return false;
@@ -212,7 +214,7 @@ namespace Util
             });
     }
 
-    bool file_exists(const WCHAR* fileName)
+    inline bool file_exists(const WCHAR* fileName)
     {
         DWORD dwAttrib = GetFileAttributesW(fileName);
         return (dwAttrib != INVALID_FILE_ATTRIBUTES && !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));

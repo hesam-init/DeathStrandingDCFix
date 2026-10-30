@@ -21,10 +21,9 @@ endif
 BUILD_DIR    := build/mingw/$(MODE)
 OUT_DIR      := $(BUILD_DIR)/bin
 TOOLCHAIN    := cmake/toolchains/mingw-w64-x86_64.cmake
-LOADER_CACHE := build/asi-loader/winhttp.dll
 DIST_ZIP     := build/$(NAME)_$(VERSION).zip
 
-.PHONY: all build release debug configure submodules check-game-dir install dist update-loader compdb clean distclean help
+.PHONY: all build release debug configure submodules check-game-dir install dist compdb clean distclean help
 
 all: build
 
@@ -64,10 +63,6 @@ dist: build
 	cp $(BUILD_DIR)/package/$(NAME)_$(VERSION).zip $(DIST_ZIP)
 	@echo "Created $(DIST_ZIP)"
 
-update-loader:
-	rm -f $(LOADER_CACHE)
-	@$(MAKE) --no-print-directory configure build
-
 compdb: $(BUILD_DIR)/CMakeCache.txt
 	ln -sf $(BUILD_DIR)/compile_commands.json compile_commands.json
 
@@ -75,21 +70,20 @@ clean:
 	rm -rf build/mingw
 
 distclean: clean
-	rm -rf build/asi-loader build/$(NAME)_*.zip
+	rm -rf build/$(NAME)_*.zip
 
 help:
 	@echo "Targets:"
 	@echo "  all (default)  Configure (first time) and build $(OUT_DIR)/"
-	@echo "                 with $(NAME).asi, $(NAME).ini and winhttp.dll"
+	@echo "                 with winhttp.dll (the fix) and $(NAME).ini"
 	@echo "  release|debug  Build with MODE=release or MODE=debug"
 	@echo "  configure      Re-run CMake configure for MODE"
-	@echo "  submodules     Fetch git submodules (spdlog, inipp)"
-	@echo "  install        Install the .asi and winhttp.dll (and .ini if absent) into GAME_DIR"
+	@echo "  submodules     Fetch git submodules (spdlog, inipp, imgui)"
+	@echo "  install        Install winhttp.dll (and .ini if absent) into GAME_DIR"
 	@echo "  dist           Create $(DIST_ZIP)"
-	@echo "  update-loader  Re-download the latest Ultimate ASI Loader"
 	@echo "  compdb         Symlink compile_commands.json into the repo root (clangd)"
-	@echo "  clean          Remove build/mingw (keeps the downloaded loader)"
-	@echo "  distclean      clean + remove the downloaded loader and release zips"
+	@echo "  clean          Remove build/mingw"
+	@echo "  distclean      clean + remove release zips"
 	@echo ""
 	@echo "Variables:"
 	@echo "  MODE=$(MODE)  VERSION=$(VERSION)  MINGW_TRIPLET=$(MINGW_TRIPLET)"

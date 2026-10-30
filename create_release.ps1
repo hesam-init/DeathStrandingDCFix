@@ -7,7 +7,6 @@ param (
 # Configuration
 $Username = "Lyall"
 $RepoName = "DeathStrandingDCFix"
-$ProxyName = "winhttp.dll"
 $Arch = "x64"
 $ZipFolder = "tmp"
 
@@ -25,28 +24,13 @@ Write-Host "($Arch) Building with xmake..."
 xmake f -p windows -a $Arch -m release
 xmake build -v
 
-# Download ultimate ASI loader
-Write-Host "($Arch) Downloading Ultimate ASI Loader..."
-
-if ($Arch -eq "x86") {
-    $asiUrl = "https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases/latest/download/Ultimate-ASI-Loader.zip"
-    $asiZipFile = "Ultimate-ASI-Loader_x86.zip"
-} else {
-    $asiUrl = "https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases/latest/download/Ultimate-ASI-Loader_x64.zip"
-    $asiZipFile = "Ultimate-ASI-Loader_x64.zip"
-}
-
-Invoke-WebRequest -Uri $asiUrl -OutFile $asiZipFile
-Expand-Archive -Force $asiZipFile -DestinationPath "." | Out-Null
-Remove-Item $asiZipFile
-
 # Prepare temp directory
 Write-Host "Preparing temporary directory..."
 Remove-Item -Recurse -Force $ZipFolder -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $ZipFolder | Out-Null
-Copy-Item -Path "build/windows/$Arch/release/*.asi" -Destination $ZipFolder/
+# The fix is built as winhttp.dll and loaded by the game directly (no ASI loader)
+Copy-Item -Path "build/windows/$Arch/release/winhttp.dll" -Destination $ZipFolder/
 Copy-Item -Path "*.ini" -Destination $ZipFolder/
-Move-Item -Path dinput8.dll -Destination $ZipFolder/$ProxyName
 New-Item -ItemType File -Path tmp/EXTRACT_TO_GAME_FOLDER | Out-Null
 
 # Create release zip

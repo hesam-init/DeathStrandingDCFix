@@ -1,7 +1,8 @@
 # Building on Arch Linux
 
-DeathStrandingDCFix is a Windows x64 DLL (renamed to `.asi`) that is loaded into the game by
-[Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader). On Linux we
+DeathStrandingDCFix is a Windows x64 DLL built as `winhttp.dll`: the game imports `WINHTTP.dll`, so it
+loads the fix directly, and every winhttp export is forwarded to the system `winhttp.dll`
+(`src/proxy/`). No ASI loader is needed. On Linux we
 cross-compile it with **CMake** and the **MinGW-w64** GCC toolchain, and test it through Proton/Wine.
 
 The upstream Windows build uses xmake + MSVC (`xmake.lua`, `create_release.ps1`). That flow is
@@ -13,8 +14,7 @@ unchanged. The CMake build below is the Linux equivalent.
 CMakeLists.txt                      # target, compile/link flags, release folder, install, CPack (zip)
 cmake/
   toolchains/mingw-w64-x86_64.cmake # MinGW-w64 cross toolchain
-  Dependencies.cmake                # spdlog, inipp (submodules) and safetyhook (vendored)
-  AsiLoader.cmake                   # downloads/caches Ultimate ASI Loader as winhttp.dll
+  Dependencies.cmake                # spdlog, inipp, imgui (submodules) and safetyhook (vendored)
 Makefile                            # short commands that run cmake / cpack for you
 ```
 
@@ -77,9 +77,8 @@ make debug             # debug build: -O0 -g, debug-level logging
 make configure         # re-run CMake configure for the current MODE
 make help              # list targets and variables
 make dist VERSION=1.0  # release zip: build/DeathStrandingDCFix_1.0.zip
-make update-loader     # re-download the latest Ultimate ASI Loader
-make clean             # remove build/mingw (keeps the downloaded loader)
-make distclean         # clean + remove the downloaded loader and release zips
+make clean             # remove build/mingw
+make distclean         # clean + remove release zips
 ```
 
 The build is incremental and uses all CPU cores (`JOBS` defaults to `nproc`; e.g. `make JOBS=4`). After the first configure, CMake also
@@ -89,25 +88,23 @@ Each build has a `bin/` folder that is a complete, ready-to-copy release:
 
 | File                       | What it is                                          |
 |----------------------------|-----------------------------------------------------|
-| `DeathStrandingDCFix.asi`  | The fix                                             |
+| `winhttp.dll`              | The fix (forwards winhttp calls to the system DLL)  |
 | `DeathStrandingDCFix.ini`  | Default settings (copied from the repo root)        |
-| `winhttp.dll`              | Ultimate ASI Loader x64 (`dinput8.dll`, renamed)    |
 
 The folder is `build/mingw/release/bin/` or `build/mingw/debug/bin/`, depending on `MODE`.
 
-The ASI loader is downloaded by CMake at configure time from the latest
-[Ultimate ASI Loader release](https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases). It is cached
-in `build/asi-loader/winhttp.dll`, so both modes share it and `make clean` doesn't download it again.
+`make install` also deletes a `DeathStrandingDCFix.asi` left over from older versions in the game folder.
 
 The DLL is linked fully static (`-static -static-libgcc -static-libstdc++`), so it does not
 need `libstdc++-6.dll`, `libgcc_s_seh-1.dll` or `libwinpthread-1.dll` next to the game. To verify:
 
 ```sh
-file build/mingw/release/bin/DeathStrandingDCFix.asi
+file build/mingw/release/bin/winhttp.dll
 # PE32+ executable for MS Windows ... (DLL), x86-64
 
-x86_64-w64-mingw32-objdump -p build/mingw/release/bin/DeathStrandingDCFix.asi | grep 'DLL Name'
-# Only KERNEL32.dll, USER32.dll and api-ms-win-crt-*.dll should be listed.
+x86_64-w64-mingw32-objdump -p build/mingw/release/bin/winhttp.dll | grep 'DLL Name'
+# Only system DLLs (KERNEL32, USER32, GDI32, SHELL32, dwmapi, D3DCOMPILER_47) and api-ms-win-crt-*.dll.
+# dxgi.dll/d3d12.dll must not be listed (they would break dxgi.dll proxies such as OptiScaler).
 ```
 
 Makefile variables (override on the command line):
@@ -120,14 +117,6 @@ Makefile variables (override on the command line):
 | `MINGW_TRIPLET` | `x86_64-w64-mingw32`   | Toolchain prefix                                 |
 | `GENERATOR`     | `Ninja` if installed   | CMake generator                                  |
 | `JOBS`          | `nproc` (all cores)    | Parallel compile jobs                            |
-
-CMake cache options (pass with `cmake -D...`, or edit with `ccmake build/mingw/release`):
-
-| Option                 | Default                         | Purpose                                     |
-|------------------------|---------------------------------|---------------------------------------------|
-| `ASI_LOADER_DLL`       | *(empty)*                       | Use a local `dinput8.dll` instead of downloading |
-| `ASI_LOADER_URL`       | latest x64 release zip          | Where to download the ASI loader from       |
-| `ASI_LOADER_CACHE_DIR` | `build/asi-loader`              | Where the downloaded loader is cached       |
 
 ### Using CMake directly
 

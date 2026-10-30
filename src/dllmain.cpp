@@ -1,10 +1,15 @@
 ﻿#include "stdafx.h"
 #include "helper.hpp"
+#include "overlay.hpp"
+#include "proxy/winhttp.hpp"
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <inipp/inipp.h>
 #include <safetyhook.hpp>
+#include <imgui.h>
+
+#include <format>
 
 #define spdlog_confparse(var) spdlog::info("Config Parse: {}: {}", #var, var)
 
@@ -49,11 +54,18 @@ float fGameplayFOVMulti;
 float fLODDistance;
 bool bCenterHUD;
 bool bEntityUpdateRate;
+bool bOverlay = true;
+bool bOverlayTransparency = false;
+bool bOverlayInputPassthrough = false;
+int iIniCustomResX; // Custom resolution as written in the ini (iCustomResX/Y get resolved to the desktop resolution)
+int iIniCustomResY;
 
 // Variables
 int iCurrentResX;
 int iCurrentResY;
 bool bIntroSkipped = false;
+std::uint8_t* EntityUpdateRateAddress = nullptr;
+std::uint8_t EntityUpdateRateOriginalByte = 0;
 
 void CalculateAspectRatio(bool bLog)
 {
@@ -131,6 +143,15 @@ void Logging()
         spdlog::info("Module Address: 0x{:x}", (uintptr_t)exeModule);
         spdlog::info("Module Timestamp: {:d}", Memory::ModuleTimestamp(exeModule));
         spdlog::info("----------");
+        if (HMODULE realWinHttp = Proxy::GetRealModule()) {
+            WCHAR realWinHttpPath[_MAX_PATH] = {0};
+            GetModuleFileNameW(realWinHttp, realWinHttpPath, MAX_PATH);
+            spdlog::info("Proxy: Forwarding winhttp.dll to {}", std::filesystem::path(realWinHttpPath).string());
+        }
+        else {
+            spdlog::error("Proxy: Failed to load the system winhttp.dll, winhttp calls will fail.");
+        }
+        spdlog::info("----------");
     }
     catch (const spdlog::spdlog_ex &ex)
     {
@@ -180,10 +201,15 @@ void Configuration()
     inipp::get_value(ini.sections["Fix Movies"], "Enabled", bFixMovies);
     inipp::get_value(ini.sections["Fix FOV"], "Enabled", bFixFOV);
     inipp::get_value(ini.sections["Fix HUD"], "Enabled", bFixHUD);
+    inipp::get_value(ini.sections["Overlay"], "Enabled", bOverlay);
+    inipp::get_value(ini.sections["Overlay"], "Transparency", bOverlayTransparency);
+    inipp::get_value(ini.sections["Overlay"], "InputPassthrough", bOverlayInputPassthrough);
 
     // Clamp settings
     fGameplayFOVMulti = std::clamp(fGameplayFOVMulti, 0.10f, 2.00f);
     fLODDistance = std::clamp(fLODDistance, 0.00f, 5.00f);
+    iIniCustomResX = iCustomResX;
+    iIniCustomResY = iCustomResY;
 
     // Log ini parse
     spdlog_confparse(bIntroSkip);
@@ -197,8 +223,95 @@ void Configuration()
     spdlog_confparse(bFixMovies);
     spdlog_confparse(bFixFOV);
     spdlog_confparse(bFixHUD);
+    spdlog_confparse(bOverlay);
+    spdlog_confparse(bOverlayTransparency);
+    spdlog_confparse(bOverlayInputPassthrough);
 
     spdlog::info("----------");
+}
+
+bool SaveConfig()
+{
+    auto BoolStr = [](bool b) { return std::string(b ? "true" : "false"); };
+    struct IniValue { std::string section; std::string key; std::string value; bool bWritten = false; };
+    std::vector<IniValue> values = {
+        { "Intro Skip", "Enabled", BoolStr(bIntroSkip) },
+        { "Custom Resolution", "Enabled", BoolStr(bCustomRes) },
+        { "Custom Resolution", "Width", std::to_string(iIniCustomResX) },
+        { "Custom Resolution", "Height", std::to_string(iIniCustomResY) },
+        { "Force Entity Updates", "Enabled", BoolStr(bEntityUpdateRate) },
+        { "Gameplay FOV", "Multiplier", std::format("{:.2f}", fGameplayFOVMulti) },
+        { "Center HUD", "Enabled", BoolStr(bCenterHUD) },
+        { "Fix Movies", "Enabled", BoolStr(bFixMovies) },
+        { "Fix FOV", "Enabled", BoolStr(bFixFOV) },
+        { "Fix HUD", "Enabled", BoolStr(bFixHUD) },
+        { "Overlay", "Enabled", BoolStr(bOverlay) },
+        { "Overlay", "Transparency", BoolStr(bOverlayTransparency) },
+        { "Overlay", "InputPassthrough", BoolStr(bOverlayInputPassthrough) },
+    };
+
+    auto Trim = [](const std::string& str) {
+        size_t start = str.find_first_not_of(" \t\r");
+        size_t end = str.find_last_not_of(" \t\r");
+        return start == std::string::npos ? std::string() : str.substr(start, end - start + 1);
+    };
+
+    // Read the existing ini so comments and layout are kept, only values are replaced
+    std::vector<std::string> lines;
+    {
+        std::ifstream iniFile(FixPath / sConfigFile, std::ios::binary);
+        std::string line;
+        while (std::getline(iniFile, line))
+            lines.push_back(line);
+    }
+
+    std::string section;
+    for (std::string& line : lines) {
+        std::string trimmed = Trim(line);
+        if (trimmed.empty() || trimmed[0] == ';' || trimmed[0] == '#')
+            continue;
+        if (trimmed[0] == '[') {
+            section = Trim(trimmed.substr(1, trimmed.find(']') - 1));
+            continue;
+        }
+
+        size_t eq = line.find('=');
+        if (eq == std::string::npos)
+            continue;
+        std::string key = Trim(line.substr(0, eq));
+        for (IniValue& value : values) {
+            if (value.section == section && value.key == key) {
+                bool bCR = line.ends_with('\r');
+                line = line.substr(0, eq + 1) + " " + value.value + (bCR ? "\r" : "");
+                value.bWritten = true;
+            }
+        }
+    }
+
+    // Append anything missing from the file (e.g. sections added in newer versions)
+    std::string lastAppendedSection;
+    for (const IniValue& value : values) {
+        if (value.bWritten)
+            continue;
+        if (value.section != lastAppendedSection) {
+            lines.push_back("");
+            lines.push_back("[" + value.section + "]");
+            lastAppendedSection = value.section;
+        }
+        lines.push_back(value.key + " = " + value.value);
+    }
+
+    std::ofstream iniFile(FixPath / sConfigFile, std::ios::binary | std::ios::trunc);
+    for (const std::string& line : lines)
+        iniFile << line << "\n";
+    iniFile.close();
+
+    if (!iniFile) {
+        spdlog::error("Config Save: Failed to write {}", FixPath.string() + sConfigFile);
+        return false;
+    }
+    spdlog::info("Config Save: Saved settings to {}", FixPath.string() + sConfigFile);
+    return true;
 }
 
 void Resolution()
@@ -342,7 +455,7 @@ void IntroSkip()
 
 void FOV()
 {
-    if (fGameplayFOVMulti != 1.00f) 
+    // Hooks are always installed and check their settings at runtime so they can be changed from the overlay.
     {
         // FOV: Gameplay
         std::uint8_t* GameplayFOVScanResult = Memory::PatternScan(exeModule, "48 8D ?? ?? ?? ?? ?? C5 7A ?? ?? ?? 48 8B ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ??");
@@ -359,7 +472,6 @@ void FOV()
         }
     }
 
-    if (bFixFOV && fAspectRatio < fNativeAspect)
     {
         // FOV: Global
         std::uint8_t* GlobalFOVScanResult = Memory::PatternScan(exeModule, "C5 F8 ?? ?? C5 F2 ?? ?? E8 ?? ?? ?? ?? C5 CA ?? ?? ?? ?? ?? ?? C5 F2 ?? ?? C5 FB ?? ?? E8 ?? ?? ?? ??");
@@ -368,7 +480,7 @@ void FOV()
             static SafetyHookMid GlobalFOVMidHook{};
             GlobalFOVMidHook = safetyhook::create_mid(GlobalFOVScanResult,
                 [](SafetyHookContext& ctx) {
-                    if (fAspectRatio < fNativeAspect)
+                    if (bFixFOV && fAspectRatio < fNativeAspect)
                         ctx.xmm0.f32[0] = fNativeAspect;
                 });
         }
@@ -383,7 +495,7 @@ void FOV()
             static SafetyHookMid CuffsFOVMidHook{};
             CuffsFOVMidHook = safetyhook::create_mid(CuffsFOVScanResult,
                 [](SafetyHookContext& ctx) {
-                    if (fAspectRatio < fNativeAspect)
+                    if (bFixFOV && fAspectRatio < fNativeAspect)
                         ctx.xmm1.f32[0] = fAspectRatio;
                 });
         }
@@ -395,7 +507,6 @@ void FOV()
 
 void HUD()
 {
-    if (bFixHUD && fAspectRatio < fNativeAspect)
     {
         // TODO: Fix mouse at <16:9
 
@@ -406,7 +517,7 @@ void HUD()
             static SafetyHookMid HUDMenusMidHook{};
             HUDMenusMidHook = safetyhook::create_mid(HUDMenusScanResult,
                 [](SafetyHookContext& ctx) {
-                    if (fAspectRatio < fNativeAspect) {
+                    if (bFixHUD && fAspectRatio < fNativeAspect) {
                         float fHeightOffset = (ctx.xmm3.f32[0] - ctx.xmm5.f32[0]) / 2.00f;
                         float fWidthOffset = (ctx.xmm2.f32[0] - 1920.00f) / 2.00f;
 
@@ -422,7 +533,6 @@ void HUD()
         }
     }
 
-    if (bCenterHUD) 
     {
         // HUD: Ultrawide
         std::uint8_t* HUDUltrawideScanResult = Memory::PatternScan(exeModule, "C5 ?? ?? ?? C5 ?? ?? ?? ?? C4 ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? C5 ?? ?? ?? ?? 48 8D ?? ?? E8 ?? ?? ?? ??");
@@ -432,7 +542,7 @@ void HUD()
             HUDUltrawideMidHook = safetyhook::create_mid(HUDUltrawideScanResult,
                 [](SafetyHookContext& ctx) {
                     //std::string sHUDObjName = *reinterpret_cast<char**>(ctx.rbx + 0x20);
-                    if (fAspectRatio > fNativeAspect)
+                    if (bCenterHUD && fAspectRatio > fNativeAspect)
                         ctx.xmm6.f32[0] = 0.00f;
                 });
         }
@@ -444,7 +554,6 @@ void HUD()
 
 void Movies()
 {
-    if (bFixMovies)
     {
         // Movies
         std::uint8_t* MoviesScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? ?? E8 ?? ?? ?? ?? EB ?? C5 ?? ?? ?? ?? ?? ?? ?? 8B ?? ?? ?? 2B ?? ?? ??");
@@ -453,7 +562,7 @@ void Movies()
             static SafetyHookMid MoviesMidHook{};
             MoviesMidHook = safetyhook::create_mid(MoviesScanResult,
                 [](SafetyHookContext& ctx) {
-                    if (fAspectRatio > fNativeAspect) {
+                    if (bFixMovies && fAspectRatio > fNativeAspect) {
                         ctx.xmm1.f32[0] = fHUDWidthOffset;      // Left
                         ctx.xmm2.f32[0] = fHUDHeightOffset;     // Top
                         ctx.xmm3.f32[0] = fHUDWidth;            // Right
@@ -467,21 +576,146 @@ void Movies()
     }
 }
 
+void ApplyEntityUpdateRate()
+{
+    if (!EntityUpdateRateAddress)
+        return;
+
+    // jz -> jmp to force updates, or restore the original jz
+    Memory::PatchBytes(EntityUpdateRateAddress, bEntityUpdateRate ? "\xEB" : reinterpret_cast<const char*>(&EntityUpdateRateOriginalByte), 1);
+    spdlog::info("Entity Update Rate: {} instruction.", bEntityUpdateRate ? "Patched" : "Restored");
+}
+
 void Graphics()
 {
-    if (bEntityUpdateRate)
-    {
-        // Fix camera stutter
-        std::uint8_t* EntityUpdateRateScanResult = Memory::PatternScan(exeModule, "85 C0 74 ?? 41 ?? ?? 0F ?? ?? 8B ?? 2B ?? 41 ?? ?? ??");
-        if (EntityUpdateRateScanResult) {
-            spdlog::info("Entity Update Rate: Address is {:s}+{:x}", sExeName.c_str(), EntityUpdateRateScanResult - reinterpret_cast<std::uint8_t*>(exeModule));
-            Memory::PatchBytes(EntityUpdateRateScanResult + 0x2, "\xEB", 1);
-            spdlog::info("Entity Update Rate: Patched instruction.");
-        }
-        else {
-            spdlog::error("Entity Update Rate: Pattern scan failed.");
-        }
+    // Fix camera stutter
+    std::uint8_t* EntityUpdateRateScanResult = Memory::PatternScan(exeModule, "85 C0 74 ?? 41 ?? ?? 0F ?? ?? 8B ?? 2B ?? 41 ?? ?? ??");
+    if (EntityUpdateRateScanResult) {
+        spdlog::info("Entity Update Rate: Address is {:s}+{:x}", sExeName.c_str(), EntityUpdateRateScanResult - reinterpret_cast<std::uint8_t*>(exeModule));
+        EntityUpdateRateAddress = EntityUpdateRateScanResult + 0x2;
+        EntityUpdateRateOriginalByte = *EntityUpdateRateAddress;
+        if (bEntityUpdateRate)
+            ApplyEntityUpdateRate();
     }
+    else {
+        spdlog::error("Entity Update Rate: Pattern scan failed.");
+    }
+}
+
+// Menu layout follows REFramework's main window (REFramework::draw_ui)
+void DrawMenu()
+{
+    static std::string sSaveStatus;
+    static bool bSaveSucceeded = false;
+    static double fSaveStatusTime = 0.0;
+
+    auto HelpMarker = [](const char* text) {
+        ImGui::SameLine();
+        ImGui::Text("(?)");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", text);
+    };
+    auto RestartNote = []() {
+        ImGui::SameLine();
+        ImGui::TextDisabled("(restart required)");
+    };
+
+    // Transparency: faded when the menu isn't focused (REFramework's values)
+    ImGuiStyle& style = ImGui::GetStyle();
+    if (bOverlayTransparency) {
+        if (ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow))
+            style.Alpha = 1.00f;
+        else if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow))
+            style.Alpha = 0.90f;
+        else
+            style.Alpha = 0.80f;
+    }
+    else {
+        style.Alpha = 1.00f;
+    }
+
+    const float fScale = style.FontScaleDpi;
+    ImGui::SetNextWindowPos(ImVec2(50.00f, 50.00f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(300.00f * fScale, 500.00f * fScale), ImGuiCond_FirstUseEver);
+
+    static const std::string sTitle = sFixName + " v" + sFixVersion;
+    bool bOpen = true;
+    ImGui::Begin(sTitle.c_str(), &bOpen);
+
+    ImGui::Text("Menu Key: Home");
+    ImGui::Checkbox("Transparency", &bOverlayTransparency);
+    HelpMarker("Makes the UI transparent when not focused.");
+    if (ImGui::Checkbox("Input Passthrough", &bOverlayInputPassthrough))
+        Overlay::SetInputPassthrough(bOverlayInputPassthrough);
+    HelpMarker("Allows mouse and keyboard inputs to register to the game while the UI is open.");
+
+    if (ImGui::Button("Save Settings")) {
+        bSaveSucceeded = SaveConfig();
+        sSaveStatus = bSaveSucceeded ? "Saved to " + sConfigFile : "Failed to save, see " + sLogFile;
+        fSaveStatusTime = ImGui::GetTime();
+    }
+    if (!sSaveStatus.empty() && ImGui::GetTime() - fSaveStatusTime < 2.0) {
+        ImGui::SameLine();
+        ImGui::TextColored(bSaveSucceeded ? ImVec4(0.40f, 0.90f, 0.40f, 1.00f) : ImVec4(1.00f, 0.40f, 0.40f, 1.00f), "%s", sSaveStatus.c_str());
+    }
+
+    if (ImGui::CollapsingHeader("General", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::TreePush("General");
+        ImGui::SliderFloat("Gameplay FOV", &fGameplayFOVMulti, 0.10f, 2.00f, "%.2fx", ImGuiSliderFlags_AlwaysClamp);
+        HelpMarker("Multiplier for the gameplay FOV. Ctrl+Click to type a value.");
+        if (ImGui::Checkbox("Force Entity Updates", &bEntityUpdateRate))
+            ApplyEntityUpdateRate();
+        HelpMarker("Forces certain game entities to update every frame. This can smooth out perceived camera stutter.");
+        ImGui::Checkbox("Intro Skip", &bIntroSkip);
+        HelpMarker("Skips company logos on game startup.");
+        RestartNote();
+        ImGui::Checkbox("Custom Resolution", &bCustomRes);
+        HelpMarker("Replaces the highest resolution option for 16:9/21:9 in-game with your custom resolution. Leave at 0 to use your desktop resolution.");
+        RestartNote();
+        ImGui::BeginDisabled(!bCustomRes);
+        if (ImGui::InputInt("Width", &iIniCustomResX, 0))
+            iIniCustomResX = std::max(iIniCustomResX, 0);
+        if (ImGui::InputInt("Height", &iIniCustomResY, 0))
+            iIniCustomResY = std::max(iIniCustomResY, 0);
+        ImGui::EndDisabled();
+        ImGui::TreePop();
+    }
+
+    if (ImGui::CollapsingHeader("Ultrawide/Narrower", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::TreePush("Ultrawide/Narrower");
+        ImGui::Checkbox("Center HUD", &bCenterHUD);
+        HelpMarker("Adjusts the gameplay HUD to 16:9. (Ultrawide-only)");
+        ImGui::Checkbox("Fix Movies", &bFixMovies);
+        HelpMarker("Fixes cropped movies when using an ultrawide resolution.");
+        ImGui::Checkbox("Fix FOV", &bFixFOV);
+        HelpMarker("Fixes cropped FOV when using a narrower than 16:9 resolution.");
+        ImGui::Checkbox("Fix HUD", &bFixHUD);
+        HelpMarker("Fixes cropped HUD when using a narrower than 16:9 resolution.");
+        ImGui::TreePop();
+    }
+
+    if (ImGui::CollapsingHeader("About")) {
+        ImGui::TreePush("About");
+        ImGui::Text("%s v%s", sFixName.c_str(), sFixVersion.c_str());
+        ImGui::Text("Menu style and D3D12 hooking based on REFramework by praydog.");
+        ImGui::Text("https://github.com/praydog/REFramework");
+        if (ImGui::TreeNode("Licenses")) {
+            ImGui::BulletText("REFramework - MIT");
+            ImGui::BulletText("Dear ImGui - MIT");
+            ImGui::BulletText("safetyhook - BSL-1.0");
+            ImGui::BulletText("spdlog - MIT");
+            ImGui::BulletText("inipp - MIT");
+            ImGui::BulletText("Roboto font - Apache-2.0");
+            ImGui::TreePop();
+        }
+        ImGui::TreePop();
+    }
+
+    ImGui::End();
+
+    // Close button (X) on the title bar
+    if (!bOpen)
+        Overlay::Close();
 }
  
 std::mutex mainThreadFinishedMutex;
@@ -498,6 +732,11 @@ DWORD __stdcall Main(void*)
     HUD();
     Movies();
     Graphics();
+
+    if (bOverlay) {
+        Overlay::SetInputPassthrough(bOverlayInputPassthrough);
+        Overlay::Init(DrawMenu);
+    }
 
     {
         std::lock_guard lock(mainThreadFinishedMutex);
@@ -534,6 +773,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
     case DLL_PROCESS_ATTACH:
     {
         thisModule = hModule;
+        Proxy::Init(hModule);
 
         HMODULE vcruntime140 = GetModuleHandleA("VCRUNTIME140.dll");
         if (vcruntime140) {

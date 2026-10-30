@@ -2,7 +2,7 @@
 
 [![Patreon-Button](.github/images/Patreon-Button.png)](https://www.patreon.com/Wintermance) [![ko-fi](.github/images/Kofi-Button.svg)](https://ko-fi.com/W7W01UAI9)
 
-**DeathStrandingDCFix** is an ASI plugin for **Death Stranding: Director's Cut** that expands ultrawide support, fixes camera stutter, skips intro logos and more.
+**DeathStrandingDCFix** is a drop-in `winhttp.dll` mod for **Death Stranding: Director's Cut** that expands ultrawide support, fixes camera stutter, skips intro logos and more.
 
 ## Features
 
@@ -24,6 +24,7 @@
 
 - Download the latest [release](../../../releases).
 - Extract the contents of the release zip in to the the game folder. (e.g. **steamapps\common\DEATH STRANDING DIRECTORS CUT** for Steam)
+- Updating from an older version: delete `DeathStrandingDCFix.asi`, the fix is now `winhttp.dll` itself and no longer needs Ultimate ASI Loader.
 
 ### Steam Deck/Linux Additional Instructions
 
@@ -33,7 +34,8 @@
 
 ## Configuration
 
-- Open **`DeathStrandingDCFix.ini`** to adjust settings.
+- Press **Home** in-game to open the settings menu. Most settings apply instantly; click **Save Settings** to write them to the ini.
+- Or open **`DeathStrandingDCFix.ini`** to adjust settings.
 
 ## Building from source
 
@@ -53,7 +55,8 @@
 ## Credits
 
 Thanks to **Hotiraipha** for commissioning this fix! <br/>
-[Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader) for ASI loading. <br />
+[REFramework](https://github.com/praydog/REFramework) for the menu style and the overlay-friendly D3D12 hooking approach. <br />
 [inipp](https://github.com/mcmtroffaes/inipp) for ini reading. <br />
 [spdlog](https://github.com/gabime/spdlog) for logging. <br />
-[safetyhook](https://github.com/cursey/safetyhook) for hooking.
+[safetyhook](https://github.com/cursey/safetyhook) for hooking. <br />
+[Dear ImGui](https://github.com/ocornut/imgui) for the in-game menu.
