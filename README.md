@@ -39,8 +39,9 @@
 
 ## Building from source
 
-- **Windows:** `xmake f -p windows -a x64 -m release && xmake build`
+- **Windows:** `cmake -S . -B build/windows -A x64 && cmake --build build/windows --config MinSizeRel` (Visual Studio 2022 + CMake 3.28+).
 - **Linux:** `make` (CMake + MinGW-w64 cross-compile). See [Building on Arch Linux](wiki/Building-on-Arch-Linux.md).
+- Third-party libraries are downloaded by CMake on the first configure. Their versions are pinned in [`cmake/Dependencies.cmake`](cmake/Dependencies.cmake).
 
 ## Known Issues
 

@@ -5,8 +5,8 @@ loads the fix directly, and every winhttp export is forwarded to the system `win
 (`src/proxy/`). No ASI loader is needed. On Linux we
 cross-compile it with **CMake** and the **MinGW-w64** GCC toolchain, and test it through Proton/Wine.
 
-The upstream Windows build uses xmake + MSVC (`xmake.lua`, `create_release.ps1`). That flow is
-unchanged. The CMake build below is the Linux equivalent.
+The same CMake project builds with MSVC on Windows (`create_release.ps1`). This page covers the Linux
+cross-compile.
 
 ## Project layout
 
@@ -14,7 +14,7 @@ unchanged. The CMake build below is the Linux equivalent.
 CMakeLists.txt                      # target, compile/link flags, release folder, install, CPack (zip)
 cmake/
   toolchains/mingw-w64-x86_64.cmake # MinGW-w64 cross toolchain
-  Dependencies.cmake                # spdlog, inipp, imgui (submodules) and safetyhook (vendored)
+  Dependencies.cmake                # pinned versions of imgui, spdlog, inipp and safetyhook (FetchContent)
 Makefile                            # short commands that run cmake / cpack for you
 ```
 
@@ -32,8 +32,8 @@ sudo pacman -S --needed base-devel git cmake ninja mingw-w64-gcc
 | Package          | Why                                                                 |
 |------------------|---------------------------------------------------------------------|
 | `base-devel`     | `make` and the basic build tools                                    |
-| `git`            | Cloning the repo and its submodules                                 |
-| `cmake`          | The build system (3.24 or newer). Also provides `cpack` for `make dist` |
+| `git`            | Cloning the repo (and Zydis, which safetyhook fetches)              |
+| `cmake`          | The build system (3.28 or newer). Also provides `cpack` for `make dist` |
 | `ninja`          | Fast CMake backend. Optional: the Makefile falls back to `Unix Makefiles` |
 | `mingw-w64-gcc`  | The Windows x64 cross compiler                                      |
 
@@ -56,18 +56,25 @@ cmake --version
 
 ## 2. Get the source
 
-The project uses git submodules for `spdlog` and `inipp`:
-
 ```sh
-git clone --recurse-submodules <repo-url>
+git clone <repo-url>
 cd DeathStrandingDCFix
 ```
 
-In an existing clone:
+Third-party libraries are not stored in the repo. The first configure downloads them from their
+release tags into `build/mingw/<mode>/_deps/`, so it needs internet access. Their versions are set at
+the top of `cmake/Dependencies.cmake`:
 
-```sh
-make submodules   # same as: git submodule update --init --recursive
+```cmake
+set(IMGUI_VERSION      1.93.0)
+set(SPDLOG_VERSION     1.17.0)
+set(INIPP_VERSION      1.0.13)
+set(SAFETYHOOK_VERSION 0.7.0)
 ```
+
+To upgrade a library, change its version and run `make`: CMake downloads the new release and
+rebuilds. To build offline or try a patched copy, point a library at a local checkout, e.g.
+`cmake -B build/mingw/release -DFETCHCONTENT_SOURCE_DIR_IMGUI=/path/to/imgui`.
 
 ## 3. Build
 
@@ -206,16 +213,16 @@ and allow clangd to query the cross compiler for its system headers. For example
 - `-flto` is not used for release builds. `mingw-w64-gcc` 16.2 hits an internal compiler
   error (`binds_to_current_def_p`) with LTO on this codebase. `-ffunction-sections
   -fdata-sections -Wl,--gc-sections` is used instead.
-- Warnings from the vendored safetyhook sources are silenced (`-w`). Warnings from `src/` are not.
+- Warnings from third-party code (imgui, safetyhook, Zydis) are silenced (`-w`). Warnings from `src/` are not.
 
 ## 8. Troubleshooting
 
 | Problem | Fix |
 | --------- | ----- |
 | `make: cmake: No such file or directory` / `cmake: command not found` | `sudo pacman -S cmake` |
-| CMake: `CMake 3.24 or higher is required` | Update your system: `sudo pacman -Syu cmake` |
+| CMake: `CMake 3.28 or higher is required` | Update your system: `sudo pacman -Syu cmake` |
 | CMake: `x86_64-w64-mingw32-gcc ... is not a full path and was not found` | `sudo pacman -S mingw-w64-gcc` |
-| CMake: `The git submodules are not initialized` | `make submodules` |
+| CMake: download of a dependency fails | GitHub is blocked or unreachable. Use `-DFETCHCONTENT_SOURCE_DIR_<NAME>=<path>` with a local copy (see section 2) |
 | `make install` says `set GAME_DIR` | Pass `GAME_DIR="..."` or export it (see above) |
 | No `DeathStrandingDCFix.log` after launching | `winhttp.dll` (the ASI loader) is missing, or the `WINEDLLOVERRIDES` launch option isn't set |
 | CMake: `Failed to download the ASI loader` | GitHub is blocked or unreachable. Download `Ultimate-ASI-Loader_x64.zip` manually, extract `dinput8.dll`, and either save it as `build/asi-loader/winhttp.dll` or run `cmake -B build/mingw/release -DASI_LOADER_DLL=/path/to/dinput8.dll` |

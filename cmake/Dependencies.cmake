@@ -1,41 +1,67 @@
-# Third-party dependencies: spdlog, inipp and imgui (git submodules), safetyhook (vendored).
+# Third-party dependencies, downloaded at configure time from their release tags.
+# To upgrade a library, change its version below and rebuild.
+# Offline / local patching: -DFETCHCONTENT_SOURCE_DIR_<NAME>=<path> (e.g. FETCHCONTENT_SOURCE_DIR_IMGUI)
+# points a dependency at a local checkout instead of downloading it.
 
-set(EXTERNAL_DIR ${PROJECT_SOURCE_DIR}/external)
+set(IMGUI_VERSION      1.93.0)
+set(SPDLOG_VERSION     1.17.0)
+set(INIPP_VERSION      1.0.13)
+set(SAFETYHOOK_VERSION 0.7.0)  # fetches its own pinned Zydis
 
-foreach(required_file
-        ${EXTERNAL_DIR}/spdlog/include/spdlog/spdlog.h
-        ${EXTERNAL_DIR}/inipp/inipp/inipp.h
-        ${EXTERNAL_DIR}/imgui/imgui.h)
-    if(NOT EXISTS ${required_file})
-        message(FATAL_ERROR
-            "Missing ${required_file}\n"
-            "The git submodules are not initialized. Run: make submodules\n"
-            "(or: git submodule update --init --recursive)")
-    endif()
-endforeach()
+include(FetchContent)
+set(FETCHCONTENT_QUIET OFF) # show download/extract output while configuring
+
+# SOURCE_SUBDIR points at a directory that doesn't exist: download only, targets are defined below.
+FetchContent_Declare(imgui
+    URL https://github.com/ocornut/imgui/archive/refs/tags/v${IMGUI_VERSION}.tar.gz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SOURCE_SUBDIR _download_only)
+
+FetchContent_Declare(spdlog
+    URL https://github.com/gabime/spdlog/archive/refs/tags/v${SPDLOG_VERSION}.tar.gz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SOURCE_SUBDIR _download_only)
+
+FetchContent_Declare(inipp
+    URL https://github.com/mcmtroffaes/inipp/archive/refs/tags/${INIPP_VERSION}.tar.gz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SOURCE_SUBDIR _download_only)
+
+# safetyhook is built with its own CMake project. SYSTEM: no warnings from its headers in our code.
+FetchContent_Declare(safetyhook
+    URL https://github.com/cursey/safetyhook/archive/refs/tags/v${SAFETYHOOK_VERSION}.tar.gz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SYSTEM
+    EXCLUDE_FROM_ALL)
+
+set(SAFETYHOOK_FETCH_ZYDIS ON)
+
+set(CMAKE_POLICY_VERSION_MINIMUM 3.10) # Zydis' cmake_minimum_required(<3.10) warns on CMake 4
+FetchContent_MakeAvailable(imgui spdlog inipp safetyhook)
+unset(CMAKE_POLICY_VERSION_MINIMUM)
 
 # spdlog: header-only
 add_library(spdlog_headers INTERFACE)
-target_include_directories(spdlog_headers SYSTEM INTERFACE ${EXTERNAL_DIR}/spdlog/include)
+target_include_directories(spdlog_headers SYSTEM INTERFACE ${spdlog_SOURCE_DIR}/include)
 add_library(deps::spdlog ALIAS spdlog_headers)
 
 # inipp: header-only
 add_library(inipp INTERFACE)
-target_include_directories(inipp SYSTEM INTERFACE ${EXTERNAL_DIR}/inipp)
+target_include_directories(inipp SYSTEM INTERFACE ${inipp_SOURCE_DIR})
 add_library(deps::inipp ALIAS inipp)
 
-# safetyhook: amalgamated sources (includes Zydis)
-add_library(safetyhook STATIC
-    ${EXTERNAL_DIR}/safetyhook/safetyhook.cpp
-    ${EXTERNAL_DIR}/safetyhook/Zydis.c)
-target_include_directories(safetyhook SYSTEM PUBLIC ${EXTERNAL_DIR}/safetyhook)
+# safetyhook (+ Zydis)
 if(NOT MSVC)
-    target_compile_options(safetyhook PRIVATE -w) # third-party code, keep the build output quiet
+    foreach(target safetyhook Zydis Zycore)
+        if(TARGET ${target})
+            target_compile_options(${target} PRIVATE -w) # third-party code, keep the build output quiet
+        endif()
+    endforeach()
 endif()
 add_library(deps::safetyhook ALIAS safetyhook)
 
 # imgui: core + Win32/DX12 backends for the in-game overlay
-set(IMGUI_DIR ${EXTERNAL_DIR}/imgui)
+set(IMGUI_DIR ${imgui_SOURCE_DIR})
 add_library(imgui STATIC
     ${IMGUI_DIR}/imgui.cpp
     ${IMGUI_DIR}/imgui_draw.cpp

@@ -1,16 +1,17 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.28) # FetchContent SYSTEM/EXCLUDE_FROM_ALL; safetyhook requires 3.28
 
 project(DeathStrandingDCFix LANGUAGES C CXX)
 
 set(FIX_VERSION "dev" CACHE STRING "Version used in the release zip name")
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-    # Matches xmake's set_optimize("smallest")
+    # Optimize for size by default
     set(CMAKE_BUILD_TYPE MinSizeRel CACHE STRING "Build type" FORCE)
 endif()
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF) # no C++20 modules here; skip the dependency scan 3.28 enables
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 

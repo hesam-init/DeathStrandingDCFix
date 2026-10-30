@@ -8,7 +8,6 @@ param (
 $Username = "Lyall"
 $RepoName = "DeathStrandingDCFix"
 $Arch = "x64"
-$ZipFolder = "tmp"
 
 if (-not $Version) {
     $Version = Read-Host "Enter release version"
@@ -19,29 +18,21 @@ if (-not $PSBoundParameters.ContainsKey('PostRelease')) {
     $PostRelease = $PostReleaseInput -match '^(true|1)$'
 }
 
-# Build
-Write-Host "($Arch) Building with xmake..."
-xmake f -p windows -a $Arch -m release
-xmake build -v
+# Build (dependencies are downloaded by CMake, versions in cmake/Dependencies.cmake)
+$BuildDir = "build/windows"
+Write-Host "($Arch) Building with CMake..."
+cmake -S . -B $BuildDir -A $Arch "-DFIX_VERSION=$Version"
+if ($LASTEXITCODE -ne 0) { Write-Error "CMake configure failed"; exit 1 }
+cmake --build $BuildDir --config MinSizeRel --parallel
+if ($LASTEXITCODE -ne 0) { Write-Error "Build failed"; exit 1 }
 
-# Prepare temp directory
-Write-Host "Preparing temporary directory..."
-Remove-Item -Recurse -Force $ZipFolder -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Path $ZipFolder | Out-Null
-# The fix is built as winhttp.dll and loaded by the game directly (no ASI loader)
-Copy-Item -Path "build/windows/$Arch/release/winhttp.dll" -Destination $ZipFolder/
-Copy-Item -Path "*.ini" -Destination $ZipFolder/
-New-Item -ItemType File -Path tmp/EXTRACT_TO_GAME_FOLDER | Out-Null
-
-# Create release zip
+# Create release zip: winhttp.dll (loaded by the game directly), the ini and EXTRACT_TO_GAME_FOLDER (see CMakeLists.txt)
 $ZipName = "${RepoName}_${Version}.zip"
 $ZipPath = Join-Path -Path "build" -ChildPath $ZipName
 Write-Host "Creating release zip: $ZipPath"
-Compress-Archive -Path tmp\* -DestinationPath $ZipPath -Force
-
-# Clean up
-Write-Host "Cleaning up temp directory..."
-Remove-Item -Recurse -Force tmp
+cpack --config "$BuildDir/CPackConfig.cmake" -C MinSizeRel -B "$BuildDir/package"
+if ($LASTEXITCODE -ne 0) { Write-Error "CPack failed"; exit 1 }
+Copy-Item -Path "$BuildDir/package/$ZipName" -Destination $ZipPath -Force
 
 Write-Host "Build $Version completed."
 

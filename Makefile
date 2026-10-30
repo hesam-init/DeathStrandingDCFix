@@ -23,7 +23,7 @@ OUT_DIR      := $(BUILD_DIR)/bin
 TOOLCHAIN    := cmake/toolchains/mingw-w64-x86_64.cmake
 DIST_ZIP     := build/$(NAME)_$(VERSION).zip
 
-.PHONY: all build release debug configure submodules check-game-dir install dist compdb clean distclean help
+.PHONY: all build release debug configure check-game-dir install dist compdb clean distclean help
 
 all: build
 
@@ -45,9 +45,6 @@ configure:
 		--toolchain $(TOOLCHAIN) \
 		-DMINGW_TRIPLET=$(MINGW_TRIPLET) \
 		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
-
-submodules:
-	git submodule update --init --recursive
 
 check-game-dir:
 	@test -n "$(GAME_DIR)" || { \
@@ -78,7 +75,6 @@ help:
 	@echo "                 with winhttp.dll (the fix) and $(NAME).ini"
 	@echo "  release|debug  Build with MODE=release or MODE=debug"
 	@echo "  configure      Re-run CMake configure for MODE"
-	@echo "  submodules     Fetch git submodules (spdlog, inipp, imgui)"
 	@echo "  install        Install winhttp.dll (and .ini if absent) into GAME_DIR"
 	@echo "  dist           Create $(DIST_ZIP)"
 	@echo "  compdb         Symlink compile_commands.json into the repo root (clangd)"
