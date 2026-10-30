@@ -48,3 +48,6 @@ build/*
 *.exe
 *.out
 *.app
+# CMake / clangd
+compile_commands.json
+.cache/

@@ -516,7 +516,7 @@ void* __cdecl memset_Hook(void* Dst, int Val, size_t Size)
     std::lock_guard lock(memsetHookMutex);
     if (!memsetHookCalled) {
         memsetHookCalled = true;
-        Memory::HookIAT(exeModule, "VCRUNTIME140.dll", memset_Hook, memset_Fn);
+        Memory::HookIAT(exeModule, "VCRUNTIME140.dll", (void*)memset_Hook, (void*)memset_Fn);
 
         if (!mainThreadFinished) {
             std::unique_lock finishedLock(mainThreadFinishedMutex);
@@ -538,7 +538,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         HMODULE vcruntime140 = GetModuleHandleA("VCRUNTIME140.dll");
         if (vcruntime140) {
             memset_Fn = decltype(memset_Fn)(GetProcAddress(vcruntime140, "memset"));
-            Memory::HookIAT(exeModule, "VCRUNTIME140.dll", memset_Fn, memset_Hook);
+            Memory::HookIAT(exeModule, "VCRUNTIME140.dll", (void*)memset_Fn, (void*)memset_Hook);
         }
 
         HANDLE mainHandle = CreateThread(NULL, 0, Main, 0, NULL, 0);
