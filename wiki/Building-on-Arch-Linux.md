@@ -32,7 +32,7 @@ sudo pacman -S --needed base-devel git cmake ninja mingw-w64-gcc
 | Package          | Why                                                                 |
 |------------------|---------------------------------------------------------------------|
 | `base-devel`     | `make` and the basic build tools                                    |
-| `git`            | Cloning the repo (and Zydis, which safetyhook fetches)              |
+| `git`            | Cloning the repo (the build itself doesn't need it)                 |
 | `cmake`          | The build system (3.28 or newer). Also provides `cpack` for `make dist` |
 | `ninja`          | Fast CMake backend. Optional: the Makefile falls back to `Unix Makefiles` |
 | `mingw-w64-gcc`  | The Windows x64 cross compiler                                      |
@@ -70,10 +70,15 @@ set(IMGUI_VERSION      1.93.0)
 set(SPDLOG_VERSION     1.17.0)
 set(INIPP_VERSION      1.0.13)
 set(SAFETYHOOK_VERSION 0.7.0)
+set(ZYDIS_VERSION      4.1.0)
 ```
 
+safetyhook and Zydis (the disassembler safetyhook uses) are downloaded as their single-file
+"amalgamated" release zips, so no `git clone` is needed during the build.
+
 To upgrade a library, change its version and run `make`: CMake downloads the new release and
-rebuilds. To build offline or try a patched copy, point a library at a local checkout, e.g.
+rebuilds. For safetyhook and Zydis, also update `SAFETYHOOK_SHA256` / `ZYDIS_SHA256` next to the
+version (`sha256sum` of the new release zip); CMake rejects a download that doesn't match. To build offline or try a patched copy, point a library at a local checkout, e.g.
 `cmake -B build/mingw/release -DFETCHCONTENT_SOURCE_DIR_IMGUI=/path/to/imgui`.
 
 ## 3. Build

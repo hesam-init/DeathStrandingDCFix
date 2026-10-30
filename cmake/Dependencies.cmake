@@ -6,7 +6,13 @@
 set(IMGUI_VERSION      1.93.0)
 set(SPDLOG_VERSION     1.17.0)
 set(INIPP_VERSION      1.0.13)
-set(SAFETYHOOK_VERSION 0.7.0)  # fetches its own pinned Zydis
+set(SAFETYHOOK_VERSION 0.7.0)
+set(ZYDIS_VERSION      4.1.0)  # the version safetyhook pins (its own CMake would git clone it)
+
+# safetyhook and Zydis come from release assets, which aren't immutable like tag archives:
+# update the hash together with the version.
+set(SAFETYHOOK_SHA256 0f34f8a8561bd9b2f2e6cf03bd68f69a69b9437a83d38d435c0cbf0828c75c64)
+set(ZYDIS_SHA256      6ce26e5bf812aa9384af4a514fe81afa53f3fd00d579ba9d80a710e2218f48ff)
 
 include(FetchContent)
 set(FETCHCONTENT_QUIET OFF) # show download/extract output while configuring
@@ -27,18 +33,20 @@ FetchContent_Declare(inipp
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     SOURCE_SUBDIR _download_only)
 
-# safetyhook is built with its own CMake project. SYSTEM: no warnings from its headers in our code.
+# Amalgamated single-file releases (safetyhook.hpp/.cpp, Zydis.h/.c): no git clone of Zydis and Zycore.
 FetchContent_Declare(safetyhook
-    URL https://github.com/cursey/safetyhook/archive/refs/tags/v${SAFETYHOOK_VERSION}.tar.gz
+    URL https://github.com/cursey/safetyhook/releases/download/v${SAFETYHOOK_VERSION}/safetyhook-amalgamated.zip
+    URL_HASH SHA256=${SAFETYHOOK_SHA256}
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-    SYSTEM
-    EXCLUDE_FROM_ALL)
+    SOURCE_SUBDIR _download_only)
 
-set(SAFETYHOOK_FETCH_ZYDIS ON)
+FetchContent_Declare(zydis
+    URL https://github.com/zyantific/zydis/releases/download/v${ZYDIS_VERSION}/zydis-amalgamated.zip
+    URL_HASH SHA256=${ZYDIS_SHA256}
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SOURCE_SUBDIR _download_only)
 
-set(CMAKE_POLICY_VERSION_MINIMUM 3.10) # Zydis' cmake_minimum_required(<3.10) warns on CMake 4
-FetchContent_MakeAvailable(imgui spdlog inipp safetyhook)
-unset(CMAKE_POLICY_VERSION_MINIMUM)
+FetchContent_MakeAvailable(imgui spdlog inipp safetyhook zydis)
 
 # spdlog: header-only
 add_library(spdlog_headers INTERFACE)
@@ -50,12 +58,19 @@ add_library(inipp INTERFACE)
 target_include_directories(inipp SYSTEM INTERFACE ${inipp_SOURCE_DIR})
 add_library(deps::inipp ALIAS inipp)
 
-# safetyhook (+ Zydis)
+# Zydis: static (otherwise Zydis.h marks its API dllimport)
+add_library(zydis STATIC ${zydis_SOURCE_DIR}/Zydis.c)
+target_include_directories(zydis SYSTEM PUBLIC ${zydis_SOURCE_DIR})
+target_compile_definitions(zydis PUBLIC ZYDIS_STATIC_BUILD ZYCORE_STATIC_BUILD)
+
+# safetyhook
+add_library(safetyhook STATIC ${safetyhook_SOURCE_DIR}/safetyhook.cpp)
+target_include_directories(safetyhook SYSTEM PUBLIC ${safetyhook_SOURCE_DIR})
+target_compile_features(safetyhook PUBLIC cxx_std_23)
+target_link_libraries(safetyhook PUBLIC zydis)
 if(NOT MSVC)
-    foreach(target safetyhook Zydis Zycore)
-        if(TARGET ${target})
-            target_compile_options(${target} PRIVATE -w) # third-party code, keep the build output quiet
-        endif()
+    foreach(target safetyhook zydis)
+        target_compile_options(${target} PRIVATE -w) # third-party code, keep the build output quiet
     endforeach()
 endif()
 add_library(deps::safetyhook ALIAS safetyhook)
