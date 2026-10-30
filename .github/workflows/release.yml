@@ -1,0 +1,98 @@
+# Build the fix with MSVC (Windows) and MinGW-w64 (Linux cross-compile) and publish both zips
+# as a GitHub Release whenever a version tag (1.2.3 or v1.2.3) is pushed.
+name: Release
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+*'
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows (MSVC)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version
+        run: |
+          "VERSION=$($env:GITHUB_REF_NAME -replace '^v', '')" >> $env:GITHUB_ENV
+
+      # Same script used for manual releases; -PostRelease $false only builds the zip.
+      - name: Build release zip
+        run: ./create_release.ps1 -Version $env:VERSION -PostRelease $false
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: build/DeathStrandingDCFix_${{ env.VERSION }}.zip
+          if-no-files-found: error
+
+  linux:
+    name: Linux (MinGW-w64)
+    runs-on: ubuntu-latest
+    # Same toolchain as the Dockerfile (official Debian mirror instead of the Dockerfile's default one).
+    container: debian:trixie
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - name: Install toolchain
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            make cmake ninja-build ca-certificates \
+            gcc-mingw-w64-x86-64-posix g++-mingw-w64-x86-64-posix
+
+      - uses: actions/checkout@v4
+
+      - name: Set version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Build release zip
+        run: |
+          make dist VERSION="$VERSION"
+          mv "build/DeathStrandingDCFix_${VERSION}.zip" "build/DeathStrandingDCFix_${VERSION}_mingw.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: build/DeathStrandingDCFix_${{ env.VERSION }}_mingw.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Write release notes
+        run: |
+          VERSION="${TAG#v}"
+          sed "s/<RELEASE_ZIP_NAME>/DeathStrandingDCFix_${VERSION}.zip/" release_body.md > notes.md
+          printf '\n\n`DeathStrandingDCFix_%s_mingw.zip` is the same fix built with MinGW-w64 (GCC) instead of MSVC. Either zip works.\n' "$VERSION" >> notes.md
+
+      - name: Create release and upload assets
+        run: |
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            flags=()
+            [[ "$TAG" == *-* ]] && flags+=(--prerelease)
+            gh release create "$TAG" --title "$TAG" --notes-file notes.md --verify-tag "${flags[@]}"
+          fi
+          gh release upload "$TAG" dist/*.zip --clobber
