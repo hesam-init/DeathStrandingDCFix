@@ -1,7 +1,5 @@
 # DeathStrandingDCFix
 
-[![Patreon-Button](.github/images/Patreon-Button.png)](https://www.patreon.com/Wintermance) [![ko-fi](.github/images/Kofi-Button.svg)](https://ko-fi.com/W7W01UAI9)
-
 **DeathStrandingDCFix** is a drop-in `winhttp.dll` mod for **Death Stranding: Director's Cut** that expands ultrawide support, fixes camera stutter, skips intro logos and more.
 
 ## Features
@@ -49,8 +47,10 @@
 
 ## Screenshots
 
-| ![ds-animated-comparison](.github/images/ds_animated_comparison.png) |
+| ![ds-settings-menu](.github/images/ds_settings_menu.png) |
 |:--------------------------:|
+| In-game settings menu (**Home**) |
+| ![ds-animated-comparison](.github/images/ds_animated_comparison.png) |
 | Gameplay |
 
 ## Credits
