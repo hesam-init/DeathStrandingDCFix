@@ -8,6 +8,7 @@ VERSION       ?= dev
 GAME_DIR      ?=
 MINGW_TRIPLET ?= x86_64-w64-mingw32
 GENERATOR     ?= $(if $(shell command -v ninja 2>/dev/null),Ninja,Unix Makefiles)
+JOBS          ?= $(shell nproc 2>/dev/null || echo 1)
 
 ifeq ($(MODE),release)
   BUILD_TYPE := MinSizeRel
@@ -28,7 +29,7 @@ DIST_ZIP     := build/$(NAME)_$(VERSION).zip
 all: build
 
 build: $(BUILD_DIR)/CMakeCache.txt
-	cmake --build $(BUILD_DIR)
+	cmake --build $(BUILD_DIR) --parallel $(JOBS)
 	@echo "Release folder: $(OUT_DIR)/"
 
 release:
@@ -92,5 +93,5 @@ help:
 	@echo ""
 	@echo "Variables:"
 	@echo "  MODE=$(MODE)  VERSION=$(VERSION)  MINGW_TRIPLET=$(MINGW_TRIPLET)"
-	@echo "  GENERATOR=$(GENERATOR)"
+	@echo "  GENERATOR=$(GENERATOR)  JOBS=$(JOBS)"
 	@echo "  GAME_DIR=<path to the game folder>"

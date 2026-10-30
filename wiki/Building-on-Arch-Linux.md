@@ -82,7 +82,7 @@ make clean             # remove build/mingw (keeps the downloaded loader)
 make distclean         # clean + remove the downloaded loader and release zips
 ```
 
-The build is incremental and parallel by default. After the first configure, CMake also
+The build is incremental and uses all CPU cores (`JOBS` defaults to `nproc`; e.g. `make JOBS=4`). After the first configure, CMake also
 reconfigures by itself whenever `CMakeLists.txt` or `cmake/*.cmake` change.
 
 Each build has a `bin/` folder that is a complete, ready-to-copy release:
@@ -119,6 +119,7 @@ Makefile variables (override on the command line):
 | `VERSION`       | `dev`                  | Version string in the `make dist` zip name       |
 | `MINGW_TRIPLET` | `x86_64-w64-mingw32`   | Toolchain prefix                                 |
 | `GENERATOR`     | `Ninja` if installed   | CMake generator                                  |
+| `JOBS`          | `nproc` (all cores)    | Parallel compile jobs                            |
 
 CMake cache options (pass with `cmake -D...`, or edit with `ccmake build/mingw/release`):
 
