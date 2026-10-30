@@ -1,5 +1,5 @@
-# Build the fix with MSVC (Windows) and MinGW-w64 (Linux cross-compile) and publish both zips
-# as a GitHub Release whenever a version tag (1.2.3 or v1.2.3) is pushed.
+# Build the fix with MSVC (Windows) and publish it as a GitHub Release whenever a version tag
+# (1.2.3 or v1.2.3) is pushed.
 name: Release
 
 on:
@@ -35,40 +35,9 @@ jobs:
           path: build/DeathStrandingDCFix_${{ env.VERSION }}.zip
           if-no-files-found: error
 
-  linux:
-    name: Linux (MinGW-w64)
-    runs-on: ubuntu-latest
-    # Same toolchain as the Dockerfile (official Debian mirror instead of the Dockerfile's default one).
-    container: debian:trixie
-    env:
-      DEBIAN_FRONTEND: noninteractive
-    steps:
-      - name: Install toolchain
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            make cmake ninja-build ca-certificates \
-            gcc-mingw-w64-x86-64-posix g++-mingw-w64-x86-64-posix
-
-      - uses: actions/checkout@v4
-
-      - name: Set version
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
-
-      - name: Build release zip
-        run: |
-          make dist VERSION="$VERSION"
-          mv "build/DeathStrandingDCFix_${VERSION}.zip" "build/DeathStrandingDCFix_${VERSION}_mingw.zip"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: linux
-          path: build/DeathStrandingDCFix_${{ env.VERSION }}_mingw.zip
-          if-no-files-found: error
-
   release:
     name: Publish release
-    needs: [windows, linux]
+    needs: windows
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
@@ -79,14 +48,13 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
+          name: windows
           path: dist
-          merge-multiple: true
 
       - name: Write release notes
         run: |
           VERSION="${TAG#v}"
           sed "s/<RELEASE_ZIP_NAME>/DeathStrandingDCFix_${VERSION}.zip/" release_body.md > notes.md
-          printf '\n\n`DeathStrandingDCFix_%s_mingw.zip` is the same fix built with MinGW-w64 (GCC) instead of MSVC. Either zip works.\n' "$VERSION" >> notes.md
 
       - name: Create release and upload assets
         run: |
