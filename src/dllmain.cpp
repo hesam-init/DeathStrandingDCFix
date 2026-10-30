@@ -18,7 +18,7 @@ HMODULE thisModule;
 
 // Fix details
 std::string sFixName = "DeathStrandingDCFix";
-std::string sFixVersion = "0.0.1";
+std::string sFixVersion = FIX_VERSION; // set by CMake from the git tag (cmake/FixVersion.cmake)
 std::filesystem::path FixPath;
 
 // Ini

@@ -4,7 +4,8 @@
 
 NAME          := DeathStrandingDCFix
 MODE          ?= release
-VERSION       ?= dev
+# VERSION: baked into winhttp.dll and the zip name; empty means the git tag (cmake/FixVersion.cmake)
+VERSION       ?=
 GAME_DIR      ?=
 MINGW_TRIPLET ?= x86_64-w64-mingw32
 GENERATOR     ?= $(if $(shell command -v ninja 2>/dev/null),Ninja,Unix Makefiles)
@@ -21,13 +22,16 @@ endif
 BUILD_DIR    := build/mingw/$(MODE)
 OUT_DIR      := $(BUILD_DIR)/bin
 TOOLCHAIN    := cmake/toolchains/mingw-w64-x86_64.cmake
-DIST_ZIP     := build/$(NAME)_$(VERSION).zip
 
 .PHONY: all build release debug configure check-game-dir install dist compdb clean distclean help
 
 all: build
 
 build: $(BUILD_DIR)/CMakeCache.txt
+	@# Reconfigure when VERSION differs from the configured one (e.g. after a `make dist VERSION=...`).
+	@if [ "$$(sed -n 's/^FIX_VERSION:STRING=//p' $(BUILD_DIR)/CMakeCache.txt)" != "$(VERSION)" ]; then \
+		cmake -S . -B $(BUILD_DIR) -DFIX_VERSION=$(VERSION); \
+	fi
 	cmake --build $(BUILD_DIR) --parallel $(JOBS)
 	@echo "Release folder: $(OUT_DIR)/"
 
@@ -44,7 +48,8 @@ configure:
 	cmake -S . -B $(BUILD_DIR) -G "$(GENERATOR)" \
 		--toolchain $(TOOLCHAIN) \
 		-DMINGW_TRIPLET=$(MINGW_TRIPLET) \
-		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
+		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
+		-DFIX_VERSION=$(VERSION)
 
 check-game-dir:
 	@test -n "$(GAME_DIR)" || { \
@@ -55,10 +60,10 @@ install: check-game-dir build
 	cmake --install $(BUILD_DIR) --component game --prefix "$(GAME_DIR)"
 
 dist: build
-	cpack --config $(BUILD_DIR)/CPackConfig.cmake -B $(BUILD_DIR)/package \
-		-D CPACK_PACKAGE_FILE_NAME=$(NAME)_$(VERSION)
-	cp $(BUILD_DIR)/package/$(NAME)_$(VERSION).zip $(DIST_ZIP)
-	@echo "Created $(DIST_ZIP)"
+	cpack --config $(BUILD_DIR)/CPackConfig.cmake -B $(BUILD_DIR)/package
+	@# The zip is named after the version CMake resolved: $(NAME)_<version>.zip
+	@zip="$$(sed -n 's/^set(CPACK_PACKAGE_FILE_NAME "\(.*\)")$$/\1/p' $(BUILD_DIR)/CPackConfig.cmake).zip"; \
+		cp "$(BUILD_DIR)/package/$$zip" "build/$$zip" && echo "Created build/$$zip"
 
 compdb: $(BUILD_DIR)/CMakeCache.txt
 	ln -sf $(BUILD_DIR)/compile_commands.json compile_commands.json
@@ -76,12 +81,12 @@ help:
 	@echo "  release|debug  Build with MODE=release or MODE=debug"
 	@echo "  configure      Re-run CMake configure for MODE"
 	@echo "  install        Install winhttp.dll (and .ini if absent) into GAME_DIR"
-	@echo "  dist           Create $(DIST_ZIP)"
+	@echo "  dist           Create build/$(NAME)_<version>.zip"
 	@echo "  compdb         Symlink compile_commands.json into the repo root (clangd)"
 	@echo "  clean          Remove build/mingw"
 	@echo "  distclean      clean + remove release zips"
 	@echo ""
 	@echo "Variables:"
-	@echo "  MODE=$(MODE)  VERSION=$(VERSION)  MINGW_TRIPLET=$(MINGW_TRIPLET)"
+	@echo "  MODE=$(MODE)  VERSION=$(or $(VERSION),<git tag>)  MINGW_TRIPLET=$(MINGW_TRIPLET)"
 	@echo "  GENERATOR=$(GENERATOR)  JOBS=$(JOBS)"
 	@echo "  GAME_DIR=<path to the game folder>"

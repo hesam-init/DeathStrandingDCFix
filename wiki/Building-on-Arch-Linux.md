@@ -88,7 +88,8 @@ make                   # release build (default): configure on first run, then b
 make debug             # debug build: -O0 -g, debug-level logging
 make configure         # re-run CMake configure for the current MODE
 make help              # list targets and variables
-make dist VERSION=1.0  # release zip: build/DeathStrandingDCFix_1.0.zip
+make dist              # release zip named after the git tag, e.g. build/DeathStrandingDCFix_0.0.3.zip
+make dist VERSION=1.0  # release zip and fix version 1.0: build/DeathStrandingDCFix_1.0.zip
 make clean             # remove build/mingw
 make distclean         # clean + remove release zips
 ```
@@ -125,7 +126,7 @@ Makefile variables (override on the command line):
 |-----------------|------------------------|--------------------------------------------------|
 | `MODE`          | `release`              | `release` (CMake `MinSizeRel`) or `debug` (`Debug`) |
 | `GAME_DIR`      | *(empty)*              | Game folder used by `make install`               |
-| `VERSION`       | `dev`                  | Version string in the `make dist` zip name       |
+| `VERSION`       | *(git tag)*            | Fix version (log, in-game menu) and `make dist` zip name. Empty: `git describe --tags`, e.g. `0.0.3`, or `0.0.3-2-gabc1234` after the tag; `dev` without git |
 | `MINGW_TRIPLET` | `x86_64-w64-mingw32`   | Toolchain prefix                                 |
 | `GENERATOR`     | `Ninja` if installed   | CMake generator                                  |
 | `JOBS`          | `nproc` (all cores)    | Parallel compile jobs                            |

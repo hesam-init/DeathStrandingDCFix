@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28) # FetchContent SYSTEM/EXCLUDE_FROM_ALL; saf
 
 project(DeathStrandingDCFix LANGUAGES C CXX)
 
-set(FIX_VERSION "dev" CACHE STRING "Version used in the release zip name")
+include(cmake/FixVersion.cmake) # FIX_VERSION_STRING: -DFIX_VERSION or the git tag
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     # Optimize for size by default
@@ -45,7 +45,9 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     SUFFIX ".dll"
     RUNTIME_OUTPUT_DIRECTORY ${RELEASE_DIR}
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-target_compile_definitions(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:_DEBUG>)
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    FIX_VERSION="${FIX_VERSION_STRING}"
+    $<$<CONFIG:Debug>:_DEBUG>)
 target_link_libraries(${PROJECT_NAME} PRIVATE deps::spdlog deps::inipp deps::safetyhook deps::imgui user32)
 
 if(MINGW)
@@ -89,6 +91,6 @@ install(FILES ${CMAKE_BINARY_DIR}/EXTRACT_TO_GAME_FOLDER DESTINATION . COMPONENT
 
 set(CPACK_GENERATOR ZIP)
 set(CPACK_PACKAGE_NAME ${PROJECT_NAME})
-set(CPACK_PACKAGE_FILE_NAME ${PROJECT_NAME}_${FIX_VERSION})
+set(CPACK_PACKAGE_FILE_NAME ${PROJECT_NAME}_${FIX_VERSION_STRING})
 set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF)
 include(CPack)
